@@ -19,9 +19,10 @@ vicidial_agent_events.log
 *.swp
 *.swo
 
-# Audios de Historial e Interacción (Ignorar grabaciones reales)
+# Audios e Imágenes (Pruebas y Grabaciones)
 recordings/
 audio_grabado.wav
+*.png
 
 # Artefactos del agente AI
 scratch/
