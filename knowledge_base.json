@@ -1,0 +1,5 @@
+{
+  "reembolsos": "Para solicitar un reembolso bancario, primero valida que el pago se haya hecho en las ultimas 72 horas. Solo es aplicable por fallas de desconexion técnica.",
+  "cancelacion": "Para cancelar el servicio definitivo, el cliente en línea no debe presentar adeudos. Infórmale que un técnico de Vicidial deberá pasar por el modem físicamente en los próximos 10 días.",
+  "promocion": "Tenemos una promoción de retención: Si el cliente amenaza con irse por un tema de precio, bríndale la promoción RET-50 que descuenta el 50% de su próxima mensualidad de inmediato. Código: RET-50."
+}

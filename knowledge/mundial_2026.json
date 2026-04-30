@@ -1,0 +1,95 @@
+{
+    "event": "FIFA World Cup 2026",
+    "official_stats": {
+        "total_teams": 48,
+        "total_matches": 104,
+        "host_countries": ["Mexico", "USA", "Canada"],
+        "host_cities_count": 16,
+        "duration_days": 39
+    },
+    "dates": {
+        "start": "2026-06-11",
+        "end": "2026-07-19",
+        "opening_match_time": "15:00 local (CDMX)",
+        "final_match_time": "Por confirmar (Estimado 14:00 local NY/NJ)",
+        "daily_kickoff_windows": [
+            "11:00",
+            "14:00",
+            "17:00",
+            "20:00"
+        ],
+        "timezone_info": "Los horarios varían según la ciudad sede (ET, CT, PT). Los partidos en México son hora del Centro."
+    },
+    "key_matches": {
+        "opening": {
+            "date": "2026-06-11",
+            "match": "México vs. Sudáfrica",
+            "venue": "Estadio Azteca, Ciudad de México",
+            "time": "15:00 local"
+        },
+        "guadalajara_opening": {
+            "date": "2026-06-11",
+            "match": "Corea del Sur vs. Chequia",
+            "venue": "Estadio Guadalajara (Akron)",
+            "time": "22:00 local"
+        },
+        "final": {
+            "date": "2026-07-19",
+            "match": "Gran Final del Mundo",
+            "venue": "MetLife Stadium, New York/New Jersey"
+        }
+    },
+    "mexico_national_team_group_stage": [
+        {"date": "2026-06-11", "opponent": "Sudáfrica", "venue": "Estadio Azteca, CDMX"},
+        {"date": "2026-06-18", "opponent": "Corea del Sur", "venue": "Estadio Guadalajara, Zapopan"},
+        {"date": "2026-06-24", "opponent": "Chequia", "venue": "Estadio Azteca, CDMX"}
+    ],
+    "mexico_host_cities_details": {
+        "Ciudad de México (Estadio Azteca)": {
+            "june_11": "México vs. Sudáfrica (Inauguración)",
+            "june_17": "Fase de Grupos (C2 vs C4)",
+            "june_24": "México vs. Chequia",
+            "june_30": "Dieciseisavos de Final (Partido 79)",
+            "july_5": "Octavos de Final (Match 92)"
+        },
+        "Guadalajara (Estadio Akron)": {
+            "june_11": "Corea del Sur vs. Chequia",
+            "june_18": "México vs. Corea del Sur",
+            "june_23": "Colombia vs. Congo DR",
+            "june_26": "Uruguay vs. España"
+        },
+        "Monterrey (Estadio BBVA)": {
+            "june_14": "Suecia vs. Túnez",
+            "june_20": "Países Bajos vs. Japón",
+            "june_24": "Noruega vs. Senegal",
+            "june_29": "Dieciseisavos de Final (Partido 74)"
+        }
+    },
+    "knockout_stage_summary": {
+        "round_of_32": "28 de Junio al 3 de Julio (Sedes incluyen CDMX y Monterrey)",
+        "round_of_16": "4 al 7 de Julio (CDMX recibe partido el 5 de Julio)",
+        "quarter_finals": "9 al 11 de Julio (Boston, Los Ángeles, Miami, Kansas City)",
+        "semi_finals": "14 de Julio (Dallas) y 15 de Julio (Atlanta)",
+        "third_place": "18 de Julio (Miami, Hard Rock Stadium)",
+        "final": "19 de Julio (New York/New Jersey, MetLife Stadium)"
+    },
+    "broadcasters_mexico": {
+        "full_access_104_matches": {
+            "platform": "ViX Premium",
+            "details": "Única plataforma con los 104 partidos completos. Requiere suscripción y el 'Pase Mundial 2026'.",
+            "provider": "TelevisaUnivision",
+            "estimated_costs": {
+                "promotion_price": "$499 MXN (Pago único aproximado)",
+                "regular_price": "$999 MXN (Pago único)",
+                "subscription_note": "Requiere cuenta activa de ViX Premium."
+            }
+        },
+        "open_tv_32_matches": {
+            "channels": ["Las Estrellas (Ch 2)", "Canal 5", "Azteca 7"],
+            "details": "Selección de 32 partidos incluyendo: Inauguración, juegos de México, Semifinales y Gran Final.",
+            "providers": ["Televisa", "TV Azteca"],
+            "cost": "GRATUITO (TV de señal abierta)"
+        },
+        "digital_platforms": ["Vix Special Edition", "Azteca Deportes Digital"]
+    }
+}

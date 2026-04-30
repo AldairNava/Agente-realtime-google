@@ -1,0 +1,31 @@
+# Entorno Python
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Logs
+*.log
+vicidial_agent_events.log
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Audios de Historial e Interacción (Ignorar grabaciones reales)
+recordings/
+audio_grabado.wav
+
+# Artefactos del agente AI
+scratch/
+
+# Mantener las carpetas de textos (sobreescribe la exclusión si hubiese)
+!config/textos_audios_amex/
+!config/textos_audios_retencion/
