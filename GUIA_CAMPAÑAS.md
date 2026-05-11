@@ -41,22 +41,45 @@ El sistema creará automáticamente la carpeta definida en `"recording_dir"` la 
 
 ## 2. Comandos de Uso Frecuente
 
-### Conversación y Pruebas
-| Objetivo | Comando |
-| :--- | :--- |
-| **Prueba Local (Híbrida)** | `python main.py --campania amex` |
-| **Prueba Local (100% Live)** | `python main.py --campania amex --voice live` |
-| **Lanzar en Producción** | `python main.py --campania amex --mode produccion` |
+### 🤖 Modos de Conversación (Agente Activo)
 
-### Grabación de Activos (Audio Router)
+| Entorno | Voz | Comando |
+| :--- | :--- | :--- |
+| **Local** | Híbrido (IA + Pregrabados) ⭐ | `python main.py --campania <nombre>` |
+| **Local** | Live (100% IA en tiempo real) | `python main.py --campania <nombre> --voice live` |
+| **Producción Vicidial** | Híbrido (IA + Pregrabados) ⭐ | `python main.py --campania <nombre> --mode produccion` |
+| **Producción Vicidial** | Live (100% IA en tiempo real) | `python main.py --campania <nombre> --mode produccion --voice live` |
+
+> **¿Híbrido o Live?**
+> - **Híbrido**: La IA usa los audios pregrabados (`.wav`) para saludos y frases fijas. Más natural y consistente. **Recomendado para producción.**
+> - **Live**: La IA genera todo el audio en tiempo real con su propia voz. Más flexible, pero sin los audios personalizados.
+
+---
+
+### 🎙️ Grabación de Audios (Gestión de Pregrabados)
+
+El flujo correcto es: **1) editar el `.txt` → 2) ejecutar el comando de grabación.**
+Los archivos `.txt` están en `config/textos_audios_<nombre_campaña>/`.
+
 | Objetivo | Comando |
 | :--- | :--- |
-| **Grabar por ID (Recomendado)** | `python main.py --campania amex --voice grabacion --id amex_saludo` |
-| **Grabar frase libre** | `python main.py --campania amex --voice grabacion --frase "Texto libre" --salida "archivo"` |
+| **Grabar un audio específico** | `python main.py --campania <nombre> --voice grabacion --txt <nombre_archivo>` |
+| **Grabar TODOS los audios de la campaña** | `python main.py --campania <nombre> --voice grabacion --txt 1` |
+| **Grabar una frase libre desde la terminal** | `python main.py --campania <nombre> --voice grabacion --frase "Texto aquí" --salida "nombre_archivo"` |
+
+**Ejemplo para retención:**
+```bash
+# Solo regenerar el saludo
+python main.py --campania retencion --voice grabacion --txt ret_saludo
+
+# Regenerar todos los audios de retención de un jalón
+python main.py --campania retencion --voice grabacion --txt 1
+```
 
 ---
 
 ## 3. Notas Importantes
 - **Campaña Obligatoria**: Siempre debes usar `--campania <nombre>`.
-- **Precedencia de Configuración**: Los valores dentro del bloque de la campaña en `voice_config.json` siempre mandan sobre los valores globales.
-- **Modo Producción**: Requiere que la IP del servidor y el puerto SIP estén correctamente configurados en el bloque `"sip_config"` global.
+- **Modo Híbrido por defecto**: Si no indicas `--voice`, el agente usará el modo híbrido automáticamente.
+- **Los `.txt` son la fuente de verdad**: Edita solo el `.txt` correspondiente y regenera el audio. No es necesario tocar ningún archivo JSON.
+- **Modo Producción**: Requiere que la IP del servidor y el puerto SIP estén correctamente configurados en el bloque `"sip_config"` de `voice_config.json`.

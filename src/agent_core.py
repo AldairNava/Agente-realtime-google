@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 
 class VoiceAgent:
     def __init__(self, api_key, audio_interface=None, campania='amex', voice_mode='hibrido', 
-                 execution_mode='local', grabacion_id=None, grabacion_frase=None, grabacion_salida=None):
+                 execution_mode='local', grabacion_txt=None, grabacion_frase=None, grabacion_salida=None):
         
         self.campania_name = campania
         self.voice_mode = voice_mode
         self.execution_mode = execution_mode
-        self.grabacion_id = grabacion_id
+        self.grabacion_txt = grabacion_txt
         self.grabacion_frase = grabacion_frase
         self.grabacion_salida = grabacion_salida
         
@@ -120,18 +120,17 @@ class VoiceAgent:
         self.voice_capture = None
         if self.voice_mode in ('live', 'grabacion', 'hibrido'):
             if self.voice_mode == 'grabacion':
-                # Determinar nombre de archivo y frase
-                if self.grabacion_id:
-                    # Buscar en el AudioRouter
-                    all_scripts = self.audio_router.get_available_scripts()
-                    if self.grabacion_id in all_scripts:
-                        script_info = all_scripts[self.grabacion_id]
-                        self.grabacion_frase = script_info['text']
-                        self.grabacion_salida = self.grabacion_id + ".wav"
-                        logger.info(f"✨ [Modo Grabación] ID encontrado: '{self.grabacion_id}' -> \"{self.grabacion_frase[:50]}...\"")
-                    else:
-                        logger.error(f"❌ [Modo Grabación] ID '{self.grabacion_id}' NO encontrado en {scripts_file}")
+                # Leer texto desde el archivo .txt de la campaña
+                if self.grabacion_txt:
+                    textos_dir = os.path.join(os.path.dirname(__file__), '..', 'config', f'textos_audios_{campania}')
+                    txt_path = os.path.join(textos_dir, f"{self.grabacion_txt}.txt")
+                    if not os.path.exists(txt_path):
+                        logger.error(f"❌ [Modo Grabación] Archivo no encontrado: {txt_path}")
                         sys.exit(1)
+                    with open(txt_path, 'r', encoding='utf-8') as f:
+                        self.grabacion_frase = f.read().strip()
+                    self.grabacion_salida = self.grabacion_txt + ".wav"
+                    logger.info(f"✨ [Modo Grabación] .txt leído: '{self.grabacion_txt}' → \"{self.grabacion_frase[:60]}...\"")
                 
                 capture_path = os.path.join(self.capture_dir, self.grabacion_salida if self.grabacion_salida.endswith('.wav') else self.grabacion_salida + '.wav')
             else:

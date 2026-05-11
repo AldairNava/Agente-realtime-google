@@ -70,9 +70,27 @@ Configurado para indagar motivos, ofrecer beneficios escalonados y generar folio
 
 ## 🚀 Instalación y Uso
 
-1.  Instalar dependencias: `pip install -r requirements.txt`
-2.  Configurar el API Key en `.env`: `GEMINI_API_KEY=tu_clave_aqui`
-3.  Arrancar el agente: `python main.py`
+1. Instalar dependencias: `pip install -r requirements.txt`
+2. Configurar el API Key en `.env`: `GEMINI_API_KEY=tu_clave_aqui`
+3. Arrancar el agente con el modo deseado:
+
+### Modos de Conversación
+
+| Entorno | Voz | Comando |
+| :--- | :--- | :--- |
+| **Local** | Híbrido (IA + Pregrabados) ⭐ | `python main.py --campania <nombre>` |
+| **Local** | Live (100% IA) | `python main.py --campania <nombre> --voice live` |
+| **Producción Vicidial** | Híbrido (IA + Pregrabados) ⭐ | `python main.py --campania <nombre> --mode produccion` |
+| **Producción Vicidial** | Live (100% IA) | `python main.py --campania <nombre> --mode produccion --voice live` |
+
+### Grabación / Actualización de Audios
+
+Edita el `.txt` en `config/textos_audios_<campaña>/` y ejecuta:
+
+| Objetivo | Comando |
+| :--- | :--- |
+| **Grabar un audio** | `python main.py --campania <nombre> --voice grabacion --txt <nombre_archivo>` |
+| **Grabar todos los audios** | `python main.py --campania <nombre> --voice grabacion --txt 1` |
 
 ---
 > [!IMPORTANT]

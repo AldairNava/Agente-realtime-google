@@ -20,64 +20,121 @@ logger = logging.getLogger("SystemCore")
 
 load_dotenv()
 
+
+async def grabar_un_audio(api_key, audio_interface, campania, txt_nombre):
+    """Crea un agente en modo grabación, lee el .txt y genera el .wav."""
+    agent = VoiceAgent(
+        api_key=api_key,
+        audio_interface=audio_interface,
+        campania=campania,
+        voice_mode='grabacion',
+        execution_mode='local',
+        grabacion_txt=txt_nombre,
+    )
+    agent_task = asyncio.create_task(agent.start())
+    try:
+        await agent_task
+    except Exception as e:
+        logger.error(f"Error grabando '{txt_nombre}': {e}")
+    finally:
+        agent_task.cancel()
+        await asyncio.sleep(0.3)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Don Pelayo - Agente de Voz Camaleónico Multi-Campaña")
-    
+
     # Argumentos Principales
-    parser.add_argument("--campania", type=str, required=True, 
+    parser.add_argument("--campania", type=str, required=True,
                         help="Nombre de la campaña (ej: amex, retencion, plata)")
-    
-    parser.add_argument("--mode", choices=["local", "produccion"], default="local", 
+
+    parser.add_argument("--mode", choices=["local", "produccion"], default="local",
                         help="Entorno de ejecución: 'local' (micro) o 'produccion' (SIP/Vicidial)")
-    
+
     parser.add_argument("--voice", choices=["live", "hibrido", "grabacion"], default="hibrido",
                         help="Modalidad de voz: 'live' (solo IA), 'hibrido' (IA + Pregrabados) o 'grabacion'")
 
     # Argumentos para Modo Grabación
-    parser.add_argument("--id", type=str, help="[Solo --voice grabacion] ID del guion en el JSON para grabar automáticamente")
-    parser.add_argument("--frase", type=str, help="[Solo --voice grabacion] Frase manual a grabar (si no usas --id)")
-    parser.add_argument("--salida", type=str, help="[Solo --voice grabacion] Nombre manual del archivo WAV (si no usas --id)")
-    
+    parser.add_argument("--txt", type=str,
+                        help="[Solo --voice grabacion] Nombre del .txt (sin extensión) en "
+                             "config/textos_audios_<campania>/. "
+                             "Usa '1' para grabar TODOS los .txt de la carpeta en modo batch.")
+    parser.add_argument("--frase", type=str,
+                        help="[Solo --voice grabacion] Frase escrita directamente en la terminal.")
+    parser.add_argument("--salida", type=str,
+                        help="[Solo --voice grabacion] Nombre del archivo WAV de salida (solo con --frase).")
+
     args = parser.parse_args()
 
     # Validación Modo Grabación
     if args.voice == "grabacion":
-        if not args.id and not args.frase:
-            print('[ERROR] El modo grabación requiere un --id (del JSON) o una --frase manual.')
+        if not args.txt and not args.frase:
+            print('[ERROR] El modo grabación requiere --txt <nombre_o_1> o --frase "texto".')
             return
 
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.error("No se encontró GEMINI_API_KEY en las variables de entorno (.env)")
+        return
+
+    # ---------------------------------------------------------------
+    # MODO BATCH: --txt 1  →  graba TODOS los .txt de la campaña
+    # ---------------------------------------------------------------
+    if args.voice == "grabacion" and args.txt == "1":
+        textos_dir = os.path.join(os.path.dirname(__file__), 'config', f'textos_audios_{args.campania}')
+        if not os.path.isdir(textos_dir):
+            logger.error(f"❌ No existe la carpeta de textos: {textos_dir}")
+            return
+
+        archivos_txt = sorted([f[:-4] for f in os.listdir(textos_dir) if f.endswith('.txt')])
+        if not archivos_txt:
+            logger.error(f"❌ No hay archivos .txt en: {textos_dir}")
+            return
+
+        logger.info("=" * 52)
+        logger.info(f"  🎙️  MODO BATCH — CAMPAÑA: {args.campania.upper()}")
+        logger.info(f"  Total de audios a grabar: {len(archivos_txt)}")
+        logger.info("=" * 52)
+
+        audio_interface = LocalAudioInterface(chunk=512)
+        try:
+            for i, nombre in enumerate(archivos_txt, 1):
+                logger.info(f"\n[{i}/{len(archivos_txt)}] ➜ Grabando: {nombre}.txt ...")
+                await grabar_un_audio(api_key, audio_interface, args.campania, nombre)
+                logger.info(f"✅ [{i}/{len(archivos_txt)}] {nombre}.wav guardado. Pausa 2s...")
+                await asyncio.sleep(2)
+        finally:
+            audio_interface.close()
+
+        logger.info("\n🎉 BATCH COMPLETO. Todos los audios fueron generados.")
+        return
+
+    # ---------------------------------------------------------------
+    # MODO NORMAL: un solo audio o agente en conversación completa
+    # ---------------------------------------------------------------
     logger.info("=============================================")
     logger.info(f" 🚀 INICIANDO AGENTE MUNDIALISTA ")
     logger.info(f" CAMPAÑA: {args.campania.upper()} ")
     logger.info(f" ENTORNO: {args.mode.upper()} ")
     logger.info(f" VOZ    : {args.voice.upper()} ")
     logger.info("=============================================")
-    
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logger.error("No se encontró GEMINI_API_KEY en las variables de entorno (.env)")
-        return
-    
-    # Interfaza de Audio y Conector Vicidial
+
     audio_interface = None
     if args.mode == "produccion":
-        # Nota: La configuración SIP sigue siendo compartida por ahora, 
-        # pero las credenciales de agente se cargan por campaña en VoiceAgent
         import json
         config_path = os.path.join(os.path.dirname(__file__), 'config', 'voice_config.json')
         with open(config_path, 'r', encoding='utf-8') as f:
             cfg = json.load(f)
         sip = cfg['sip_config']
         audio_interface = SipAudioInterface(
-            server=os.getenv('SIP_SERVER_IP', sip.get('server_ip')), 
-            port=int(os.getenv('SIP_PORT', sip.get('port', 5060))), 
-            user=os.getenv('SIP_EXTENSION', sip.get('extension')), 
+            server=os.getenv('SIP_SERVER_IP', sip.get('server_ip')),
+            port=int(os.getenv('SIP_PORT', sip.get('port', 5060))),
+            user=os.getenv('SIP_EXTENSION', sip.get('extension')),
             password=os.getenv('SIP_PASSWORD', sip.get('password'))
         )
     else:
         audio_interface = LocalAudioInterface(chunk=512)
 
-    # Inicialización del Agente con Perfil de Campaña
     try:
         agent = VoiceAgent(
             api_key=api_key,
@@ -85,7 +142,7 @@ async def main():
             campania=args.campania,
             voice_mode=args.voice,
             execution_mode=args.mode,
-            grabacion_id=args.id,
+            grabacion_txt=args.txt,
             grabacion_frase=args.frase,
             grabacion_salida=args.salida
         )
@@ -97,7 +154,7 @@ async def main():
         return
 
     agent_task = asyncio.create_task(agent.start())
-    
+
     try:
         await agent_task
     except KeyboardInterrupt:
@@ -109,8 +166,9 @@ async def main():
         if audio_interface:
             audio_interface.close()
         agent_task.cancel()
-        await asyncio.sleep(0.5) 
+        await asyncio.sleep(0.5)
         logger.info("Sistemas de Hardware Liberados. Adiós.")
+
 
 if __name__ == "__main__":
     try:

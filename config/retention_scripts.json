@@ -11,7 +11,7 @@
     "scripts": {
         "saludo_generico": {
             "category": "saludo",
-            "text": "Hola, buenas tardes. Le llamo del departamento de retención de Izzi. Mi nombre es Liliana Hernández.",
+            "text": "Hola, buenas tardes. Le llamo del departamento de cuentas especiales de Izzi. Mi nombre es Liliana Hernández.",
             "tts_direction": "Di con tono profesional y amigable, como si fuera el inicio de una llamada de atención al cliente:",
             "variables": [],
             "prerecord": true
@@ -130,7 +130,7 @@
         },
         "saludo_con_nombre": {
             "category": "saludo",
-            "text": "Hola, buenas tardes {nombre_cliente}. Le llamo del departamento de retención de Izzi. Mi nombre es Liliana Hernández.",
+            "text": "Hola, buenas tardes {nombre_cliente}. Le llamo del departamento de cuentas especiales de Izzi. Mi nombre es Liliana Hernández.",
             "tts_direction": "Di con tono profesional, cálido y amigable, como el inicio de una llamada personalizada:",
             "variables": [
                 "nombre_cliente"
@@ -158,7 +158,7 @@
         },
         "ret_saludo": {
             "category": "saludo",
-            "text": "Hola, buenas tardes. Gracias por llamar al área de retención y cuentas especiales. Le atiende Liliana Hernández. ¿Con quién tengo el gusto?",
+            "text": "Hola, buenas tardes. Gracias por llamar al área de cuentas especiales. Le atiende Liliana Hernández. ¿Con quién tengo el gusto?",
             "tts_direction": "Di con tono profesional, cálido y amigable, como el inicio de una llamada de servicio premium:",
             "variables": [],
             "prerecord": true
@@ -214,7 +214,7 @@
         },
         "ret_saludo_v2": {
             "category": "saludo",
-            "text": "Qué tal, muy buenas tardes. Está hablando al área de retención. Mi nombre es Liliana Hernández, ¿con quién tengo el placer de hablar?",
+            "text": "Qué tal, muy buenas tardes. Está hablando al área de cuentas especiales. Mi nombre es Liliana Hernández, ¿con quién tengo el placer de hablar?",
             "tts_direction": "Di con tono muy cordial y fresco:",
             "variables": [],
             "prerecord": true

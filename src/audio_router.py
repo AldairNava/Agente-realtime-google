@@ -16,6 +16,7 @@ import wave
 import asyncio
 import logging
 import hashlib
+import random
 from google import genai
 from google.genai import types
 
@@ -103,6 +104,9 @@ class AudioRouter:
         """
         Punto de entrada principal. Obtiene PCM para un script_id.
         
+        Si existen variantes del script (ej: ret_saludo_v2, ret_saludo_v3),
+        elige una al azar para sonar más natural en cada llamada.
+        
         - Si es pregrabado y está en cache → retorna instantáneo
         - Si tiene variables → genera con TTS bajo demanda y cachea
         - Si no existe → retorna None (la Live API se encarga)
@@ -111,6 +115,23 @@ class AudioRouter:
             logger.warning(f"⚠️ [AudioRouter] Script '{script_id}' no encontrado en el catálogo")
             return None
 
+        # --- Selección aleatoria de variantes ---
+        # Busca ret_saludo_v2, ret_saludo_v3... y elige al azar junto con el original
+        variantes = [script_id]
+        i = 2
+        while True:
+            candidato = f"{script_id}_v{i}"
+            if candidato in self.scripts:
+                variantes.append(candidato)
+                i += 1
+            else:
+                break
+        
+        selected_id = random.choice(variantes)
+        if len(variantes) > 1:
+            logger.info(f"🎲 [AudioRouter] Variantes disponibles para '{script_id}': {variantes} → eligiendo '{selected_id}'")
+        
+        script_id = selected_id
         script = self.scripts[script_id]
         required_vars = script.get('variables', [])
 
