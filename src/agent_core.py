@@ -224,12 +224,8 @@ class VoiceAgent:
                     self.delayed_hangup_task.cancel()
                     self.delayed_hangup_task = None
 
-                if self.ai_speaking or self.greeting_lock:
-                    silence = b'\x00' * len(chunk)
-                    await session.send_realtime_input(audio=types.Blob(data=silence, mime_type="audio/pcm"))
-                else:
-                    if self.recorder: self.recorder.write_client(chunk)
-                    await session.send_realtime_input(audio=types.Blob(data=chunk, mime_type="audio/pcm"))
+                if self.recorder: self.recorder.write_client(chunk)
+                await session.send_realtime_input(audio=types.Blob(data=chunk, mime_type="audio/pcm"))
         except Exception as e:
             if "1000" not in str(e): logger.error(f"Error _send_audio: {e}")
 
@@ -239,7 +235,7 @@ class VoiceAgent:
                 async for response in session.receive():
                     if not self.session_active: break
                     if response.server_content and response.server_content.interrupted:
-                        if self.greeting_done and not self.greeting_lock:
+                        if not self.greeting_lock:
                             while not self.audio_out_queue.empty(): self.audio_out_queue.get_nowait()
                             logger.info("🔇 [Barge-in] Limpiando cola de audio.")
                         continue

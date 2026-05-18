@@ -6,3 +6,7 @@ torch
 torchaudio
 onnxruntime
 numpy
+pymysql
+selenium
+pyVoIP
+pydub

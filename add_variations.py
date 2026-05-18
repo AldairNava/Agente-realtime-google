@@ -1,6 +1,6 @@
 import json
 
-path = r"c:\vicidial-voice-agent_amex\config\retention_scripts.json"
+path = r"C:\vicidial-voice-agent_multicampaña\config\retention_scripts.json"
 
 with open(path, "r", encoding="utf-8") as f:
     data = json.load(f)
