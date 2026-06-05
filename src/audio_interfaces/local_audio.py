@@ -21,13 +21,23 @@ class LocalAudioInterface(AudioInterface):
         self.is_running = True
         
         mic_index_env = os.getenv("MICROPHONE_INDEX")
+        self.input_channels = self.channels
         try:
             if mic_index_env is not None:
-                self.stream_in = self.p_audio.open(
-                    format=pyaudio.paInt16, channels=self.channels, rate=self.sample_rate,
-                    input=True, frames_per_buffer=self.chunk, input_device_index=int(mic_index_env)
-                )
-                logger.info(f"Usando Micrófono especificado en .env (Index: {mic_index_env})")
+                try:
+                    self.stream_in = self.p_audio.open(
+                        format=pyaudio.paInt16, channels=self.channels, rate=self.sample_rate,
+                        input=True, frames_per_buffer=self.chunk, input_device_index=int(mic_index_env)
+                    )
+                    logger.info(f"Usando Micrófono en .env (Index: {mic_index_env}) en Mono")
+                except Exception as mono_e:
+                    logger.warning(f"Fallo abriendo Mic {mic_index_env} en Mono: {mono_e}. Intentando Stereo...")
+                    self.stream_in = self.p_audio.open(
+                        format=pyaudio.paInt16, channels=2, rate=self.sample_rate,
+                        input=True, frames_per_buffer=self.chunk, input_device_index=int(mic_index_env)
+                    )
+                    self.input_channels = 2
+                    logger.info(f"Usando Micrófono en .env (Index: {mic_index_env}) en Stereo (auto-downmix)")
             else:
                 self.stream_in = self.p_audio.open(
                     format=pyaudio.paInt16, channels=self.channels, rate=self.sample_rate,
@@ -82,7 +92,14 @@ class LocalAudioInterface(AudioInterface):
     async def read_chunk(self):
         """Lectura liberada a un ThreadPool Asíncrono"""
         # Ejecuta la lectura bloqueante aislando a Gemini
-        return await asyncio.to_thread(self.stream_in.read, self.chunk, False)
+        chunk_data = await asyncio.to_thread(self.stream_in.read, self.chunk, False)
+        
+        # Downmix de Stereo a Mono si el micrófono virtual lo requirió
+        if getattr(self, 'input_channels', 1) == 2:
+            import audioop
+            chunk_data = audioop.tomono(chunk_data, 2, 1, 1)
+            
+        return chunk_data
 
     async def write_chunk(self, data):
         """Escritura liberada a un ThreadPool Asíncrono"""

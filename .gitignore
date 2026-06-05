@@ -30,3 +30,15 @@ scratch/
 # Mantener las carpetas de textos (sobreescribe la exclusión si hubiese)
 !config/textos_audios_amex/
 !config/textos_audios_retencion/
+
+# Perfiles de Chrome y cachés del navegador
+chrome_profile/
+**/chrome_profile_siebel/
+**/chrome_profile_retencion/
+
+# Registros de llamadas
+registro_de_llamadas/
+**/registro_de_llamadas/
+
+# Ejecutables locales
+chromedriver.exe

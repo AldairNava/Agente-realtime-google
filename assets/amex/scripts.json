@@ -1,0 +1,183 @@
+{
+    "tts_config": {
+        "model": "gemini-2.5-flash-preview-tts",
+        "voice_name": "Kore",
+        "sample_rate": 24000,
+        "sample_width": 2,
+        "channels": 1,
+        "output_dir": "assets/amex/recordings",
+        "audio_profile": "# AUDIO PROFILE: Liliana Hernández\n## Ejecutiva de Ventas — American Express México\n### DIRECTOR'S NOTES\nStyle: Profesional y entusiasta, como una ejecutiva de un banco premium. Voz cálida y segura que transmite exclusividad. No agresiva, sino consultiva y elegante.\nPacing: Ritmo claro y pausado. Articulación perfecta. Pausas naturales entre frases para dar peso a los beneficios.\nAccent: Español mexicano neutro de Ciudad de México. Dicción impecable, cero regionalismos."
+    },
+
+    "scripts": {
+        "amex_saludo": {
+            "category": "saludo",
+            "text": "Hola qué tal, me presento, soy Liliana Hernández. Me comunico por parte de American Express para comentarle que tiene una promoción para una tarjeta con grandes beneficios, ¿le gustaría que le hable sobre ella?",
+            "tts_direction": "",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_motivo": {
+            "category": "saludo",
+            "text": "El motivo de mi llamada es para ofrecerle una oportunidad exclusiva. La Tarjeta Platinum Credit Card de American Express, con un cashback de 3 mil pesos al adquirirla.",
+            "tts_direction": "Di con tono entusiasta pero elegante, como presentando una oferta premium exclusiva:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_privacidad": {
+            "category": "legal",
+            "text": "Le informo que esta llamada es grabada con fines de calidad y sus datos serán tratados conforme al aviso de privacidad de American Express.",
+            "tts_direction": "Di con tono formal y claro, como un aviso legal profesional:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_beneficios": {
+            "category": "pitch",
+            "text": "La Platinum Credit Card le ofrece el primer año sin anualidad, acceso a salas VIP en aeropuertos, y acumulación de puntos Membership Rewards en todas sus compras.",
+            "tts_direction": "Di con tono entusiasta y persuasivo, resaltando cada beneficio con emoción contenida:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_requisitos": {
+            "category": "pitch",
+            "text": "Solo necesitamos verificar algunos datos para iniciar su solicitud. Son menos de 5 minutos y todo lo hacemos por esta vía.",
+            "tts_direction": "Di con tono amigable y tranquilizador, minimizando el esfuerzo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pedir_nombre": {
+            "category": "captura",
+            "text": "¿Me podría proporcionar su nombre completo, tal como aparece en su identificación oficial?",
+            "tts_direction": "Di con tono amable y profesional:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pedir_apellidos": {
+            "category": "captura",
+            "text": "¿Me indica su apellido paterno y apellido materno, por favor?",
+            "tts_direction": "Di con tono cortés y profesional:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pedir_nacimiento": {
+            "category": "captura",
+            "text": "¿Cuál es su fecha de nacimiento, por favor? Día, mes y año.",
+            "tts_direction": "Di con tono amable y pausado:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pedir_rfc": {
+            "category": "captura",
+            "text": "¿Me puede proporcionar su RFC con homoclave? Serían 13 caracteres.",
+            "tts_direction": "Di con tono profesional, indicando claramente el formato:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pedir_email": {
+            "category": "captura",
+            "text": "¿Cuál es su correo electrónico? Ahí le enviaremos la confirmación de su solicitud.",
+            "tts_direction": "Di con tono amable:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pedir_celular": {
+            "category": "captura",
+            "text": "¿Cuál es su número de celular a 10 dígitos?",
+            "tts_direction": "Di con tono profesional y directo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pedir_cp": {
+            "category": "captura",
+            "text": "¿Cuál es su código postal?",
+            "tts_direction": "Di con tono amable y breve:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pregunta_tdc": {
+            "category": "captura",
+            "text": "¿Actualmente es usted titular de alguna tarjeta de crédito con historial mayor a 3 meses?",
+            "tts_direction": "Di con tono profesional, como una pregunta de rutina:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pregunta_auto": {
+            "category": "captura",
+            "text": "¿Cuenta con algún crédito automotriz en los últimos 2 años?",
+            "tts_direction": "Di con tono profesional y natural:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_pregunta_hipoteca": {
+            "category": "captura",
+            "text": "¿Tiene algún crédito hipotecario vigente?",
+            "tts_direction": "Di con tono profesional y breve:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_confirmar_datos": {
+            "category": "verificacion",
+            "text": "Perfecto, tengo todos sus datos. Permítame verificarlos para procesar su solicitud.",
+            "tts_direction": "Di con tono satisfecho y eficiente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_enviando": {
+            "category": "transicion",
+            "text": "Estoy enviando su solicitud en este momento, me permite un segundito por favor.",
+            "tts_direction": "Di con tono profesional y expectante:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_exito": {
+            "category": "cierre",
+            "text": "¡Excelente noticia! Su solicitud fue enviada con éxito. Recibirá un mensaje de verificación en su celular para completar el proceso.",
+            "tts_direction": "Di con tono entusiasta y felicitando al cliente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_despedida": {
+            "category": "cierre",
+            "text": "Muchas gracias por su tiempo e interés en American Express. Fue un gusto atenderle. Que tenga un excelente día.",
+            "tts_direction": "Di con tono cálido y agradecido, despidiéndote profesionalmente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_no_interesado": {
+            "category": "objecion",
+            "text": "Entiendo perfectamente, le agradezco mucho su tiempo. Si en algún momento desea conocer nuestros productos, estamos a sus órdenes.",
+            "tts_direction": "Di con tono comprensivo y respetuoso, sin presionar:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_ya_tiene": {
+            "category": "objecion",
+            "text": "¡Ah, perfecto! Me da gusto que ya sea parte de la familia American Express. ¿Le gustaría conocer los beneficios adicionales de la Platinum?",
+            "tts_direction": "Di con tono alegre y aprovechando la oportunidad:",
+            "variables": [],
+            "prerecord": true
+        },
+        "amex_error_envio": {
+            "category": "cierre",
+            "text": "Disculpe, tuve un inconveniente técnico al procesar su solicitud. Le voy a proporcionar un enlace para que pueda completarla directamente. ¿Me permite su correo electrónico?",
+            "tts_direction": "Di con tono profesional y disculpándote, sin alarmar:",
+            "variables": [],
+            "prerecord": true
+        },
+
+        "amex_confirmar_nombre": {
+            "category": "verificacion",
+            "text": "Para confirmar, su nombre completo es {nombre_completo}. ¿Es correcto?",
+            "tts_direction": "Di con tono profesional, leyendo el nombre claramente:",
+            "variables": ["nombre_completo"],
+            "prerecord": false
+        },
+        "amex_confirmar_email_var": {
+            "category": "verificacion",
+            "text": "Su correo electrónico es {email}. ¿Está correcto?",
+            "tts_direction": "Di con tono profesional, deletreando el correo claramente:",
+            "variables": ["email"],
+            "prerecord": false
+        }
+    }
+}

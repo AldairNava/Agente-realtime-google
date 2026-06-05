@@ -1,6 +1,11 @@
 import torch
 import numpy as np
 import logging
+import os
+import ssl
+
+# Desactivar la verificación SSL de Python para evitar fallos de conexión al descargar de torch.hub en Windows
+ssl._create_default_https_context = ssl._create_unverified_context
 
 logger = logging.getLogger(__name__)
 
@@ -12,15 +17,23 @@ class VADProcessor:
     def __init__(self, sample_rate=16000, threshold=0.5):
         self.sample_rate = sample_rate
         self.threshold = threshold
-        logger.info("Cargando modelo neuronal Silero VAD (Descargará ONNX la primera vez)...")
+        
+        # Obtener ruta absoluta del modelo local
+        local_model_path = os.path.join(os.path.dirname(__file__), "resources", "silero_vad.jit")
+        
         try:
-            # Estado del Arte: Ignora teclados y ruido de fondo de Call Center
-            self.model, utils = torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
-                force_reload=False,
-                trust_repo=True
-            )
+            if os.path.exists(local_model_path):
+                logger.info(f"Cargando Silero VAD localmente desde: {local_model_path}")
+                self.model = torch.jit.load(local_model_path)
+            else:
+                logger.warning(f"Modelo local no encontrado en {local_model_path}. Intentando descargar vía torch.hub...")
+                # Estado del Arte: Ignora teclados y ruido de fondo de Call Center
+                self.model, utils = torch.hub.load(
+                    repo_or_dir='snakers4/silero-vad',
+                    model='silero_vad',
+                    force_reload=False,
+                    trust_repo=True
+                )
             # Eval mode desactiva gradients = máxima velocidad de Inferencia In-Memory
             self.model.eval()
             self.model.to('cpu')

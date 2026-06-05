@@ -1,0 +1,328 @@
+{
+    "tts_config": {
+        "model": "gemini-2.5-flash-preview-tts",
+        "voice_name": "Kore",
+        "sample_rate": 24000,
+        "sample_width": 2,
+        "channels": 1,
+        "output_dir": "assets/retencion/recordings",
+        "audio_profile": "# AUDIO PROFILE: Liliana Hernández\n## Agente de Retención — Izzi Telecom\n### DIRECTOR'S NOTES\nStyle: Profesional, empática y persuasiva. Voz cálida de agente de call center mexicana con experiencia. Transmite confianza y genuino interés por ayudar al cliente. Tono amigable pero respetuoso.\nPacing: Ritmo natural y claro, ni muy rápido ni muy lento. Pausas naturales entre frases. Articulación perfecta.\nAccent: Español mexicano neutro de Ciudad de México. Acento 100% natural, sin regionalismos marcados. Dicción clara y profesional."
+    },
+    "scripts": {
+        "saludo_generico": {
+            "category": "saludo",
+            "text": "Hola, buenas tardes. Le llamo del departamento de cuentas especiales de Izzi. Mi nombre es Liliana Hernández.",
+            "tts_direction": "Di con tono profesional y amigable, como si fuera el inicio de una llamada de atención al cliente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "motivo_llamada": {
+            "category": "saludo",
+            "text": "El motivo de mi llamada es porque detectamos una solicitud previa de cancelación de su servicio, y me gustaría platicar con usted al respecto.",
+            "tts_direction": "Di con tono preocupado pero profesional, transmitiendo interés genuino:",
+            "variables": [],
+            "prerecord": true
+        },
+        "aviso_privacidad": {
+            "category": "legal",
+            "text": "Le informo que esta llamada será grabada con fines de calidad y sus datos serán tratados conforme a nuestro aviso de privacidad.",
+            "tts_direction": "Di con tono formal y claro, como un aviso legal leído profesionalmente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "entiendo_frustracion": {
+            "category": "empatia",
+            "text": "Entiendo perfectamente su frustración, y es por eso que me comunico con usted el día de hoy, para buscar la mejor solución posible.",
+            "tts_direction": "Di con tono muy empático y comprensivo, como si realmente te importara el problema del cliente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "momento_por_favor": {
+            "category": "transicion",
+            "text": "Permítame un momento mientras reviso su cuenta, por favor.",
+            "tts_direction": "Di con tono amable y profesional:",
+            "variables": [],
+            "prerecord": true
+        },
+        "verifico_datos": {
+            "category": "transicion",
+            "text": "Voy a verificar los datos de su servicio, me da un segundito.",
+            "tts_direction": "Di con tono casual y amigable:",
+            "variables": [],
+            "prerecord": true
+        },
+        "oferta_descuento": {
+            "category": "retencion",
+            "text": "Tengo una muy buena noticia. Contamos con una promoción especial de retención diseñada exclusivamente para usted.",
+            "tts_direction": "Di con tono entusiasta y positivo, como dando una buena noticia al cliente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "algo_mas": {
+            "category": "cierre",
+            "text": "¿Hay algo más en lo que pueda apoyarle el día de hoy?",
+            "tts_direction": "Di con tono amable y servicial:",
+            "variables": [],
+            "prerecord": true
+        },
+        "despedida_exitosa": {
+            "category": "cierre",
+            "text": "Muchas gracias por su preferencia y por quedarse con nosotros. Fue un gusto atenderle. Que tenga un excelente día.",
+            "tts_direction": "Di con tono cálido, agradecido y satisfecho, como cerrando una retención exitosa:",
+            "variables": [],
+            "prerecord": true
+        },
+        "despedida_cancelacion": {
+            "category": "cierre",
+            "text": "Lamento mucho que haya tomado esta decisión. Le pido una disculpa por las molestias ocasionadas. En un momento le proporciono su folio de cancelación.",
+            "tts_direction": "Di con tono empático y respetuoso, mostrando pesar genuino pero profesionalismo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "si_no_titular": {
+            "category": "objecion",
+            "text": "Entiendo. ¿Con quién tengo el gusto, disculpe? ¿Y cuál sería su parentesco con el titular de la cuenta?",
+            "tts_direction": "Di con tono cortés y profesional, como haciendo una verificación de rutina:",
+            "variables": [],
+            "prerecord": true
+        },
+        "pedir_nombre": {
+            "category": "verificacion",
+            "text": "¿Me podría confirmar su nombre completo, por favor?",
+            "tts_direction": "Di con tono amable y profesional:",
+            "variables": [],
+            "prerecord": true
+        },
+        "confirmar_direccion": {
+            "category": "verificacion",
+            "text": "¿Me puede confirmar la dirección donde tiene instalado el servicio?",
+            "tts_direction": "Di con tono amable, como parte de una verificación rutinaria:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ya_no_necesario": {
+            "category": "objecion",
+            "text": "¡Ah, muy bien! Me alegra escuchar eso. Siendo así, ¿hay algo más en lo que pueda apoyarle el día de hoy?",
+            "tts_direction": "Di con tono alegre y aliviado:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ya_cancelo": {
+            "category": "objecion",
+            "text": "Entiendo. Si ya realizó la cancelación de su servicio, le pido una disculpa por la molestia. Gracias por tomar mi llamada, que tenga excelente día.",
+            "tts_direction": "Di con tono comprensivo y respetuoso, disculpándote brevemente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "no_recuerda_marcar": {
+            "category": "objecion",
+            "text": "Una disculpa por las molestias. Contamos con una solicitud registrada desde este número en días previos, pero si no es así, no hay ningún problema.",
+            "tts_direction": "Di con tono profesional y comprensivo, sin ser insistente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "pidiendo_espera_sistema": {
+            "category": "transicion",
+            "text": "Me permite un momentito mientras el sistema me carga la información, por favor.",
+            "tts_direction": "Di con tono profesional y paciente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "saludo_con_nombre": {
+            "category": "saludo",
+            "text": "Hola, buenas tardes {nombre_cliente}. Le llamo del departamento de cuentas especiales de Izzi. Mi nombre es Liliana Hernández.",
+            "tts_direction": "Di con tono profesional, cálido y amigable, como el inicio de una llamada personalizada:",
+            "variables": [
+                "nombre_cliente"
+            ],
+            "prerecord": false
+        },
+        "folio_cancelacion": {
+            "category": "cierre",
+            "text": "Su folio de cancelación es {folio}. Se lo repito: {folio}.",
+            "tts_direction": "Di con tono claro y pausado, deletreando el folio de manera que sea fácil de anotar:",
+            "variables": [
+                "folio"
+            ],
+            "prerecord": false
+        },
+        "oferta_precio": {
+            "category": "retencion",
+            "text": "Le puedo ofrecer su plan de {plan} a solo {precio} pesos mensuales por 12 meses. Es una promoción exclusiva de retención.",
+            "tts_direction": "Di con tono entusiasta y persuasivo, resaltando el precio como una gran oportunidad:",
+            "variables": [
+                "plan",
+                "precio"
+            ],
+            "prerecord": false
+        },
+        "ret_saludo": {
+            "category": "saludo",
+            "text": "Hola, buenas tardes. Gracias por llamar al área de cuentas especiales. Le atiende Liliana Hernández. ¿Con quién tengo el gusto?",
+            "tts_direction": "Di con tono profesional, cálido y amigable, como el inicio de una llamada de servicio premium:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_pedir_cuenta": {
+            "category": "sondeo",
+            "text": "¿Me podría proporcionar su número de cuenta o número de teléfono registrado, por favor?",
+            "tts_direction": "Di con tono amable y servicial:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_pedir_titular": {
+            "category": "sondeo",
+            "text": "¿Me puede confirmar el nombre completo del titular de la cuenta, por favor?",
+            "tts_direction": "Di con tono amable y rutinario:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_motivo_baja": {
+            "category": "sondeo",
+            "text": "Entiendo la situación. ¿Me podría indicar, por favor, cuál es el motivo principal por el que desea cancelar su servicio?",
+            "tts_direction": "Di con tono muy empático y comprensivo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_espera": {
+            "category": "transicion",
+            "text": "Permítame un momento en la línea, voy a revisar la información de su cuenta y validar si tiene algún plazo forzoso. No me cuelgue, por favor.",
+            "tts_direction": "Di con tono profesional y paciente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_cesion_derechos": {
+            "category": "retencion",
+            "text": "De pura casualidad, ¿no le interesaría hacer una cesión de derechos? Es decir, si tiene algún familiar o conocido, le podemos traspasar la cuenta para que no la pierda.",
+            "tts_direction": "Di con tono casual, amigable y ofreciendo una buena alternativa:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_entrega_equipo": {
+            "category": "cierre",
+            "text": "Le comento que este folio tiene una vigencia de treinta días. Para concluir su cancelación definitivamente, debe acudir a una sucursal con su módem, cargadores, decodificadores y su identificación oficial vigente.",
+            "tts_direction": "Di con tono claro, formal y directo, como dando instrucciones legales:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_despedida": {
+            "category": "cierre",
+            "text": "Le agradezco mucho el haber tomado la llamada. Le dejo con una breve encuesta para calificar mi atención. Que tenga un excelente día.",
+            "tts_direction": "Di con tono muy agradecido, cálido y sonriente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_saludo_v2": {
+            "category": "saludo",
+            "text": "Qué tal, muy buenas tardes. Está hablando al área de cuentas especiales. Mi nombre es Liliana Hernández, ¿con quién tengo el placer de hablar?",
+            "tts_direction": "Di con tono muy cordial y fresco:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_saludo_v3": {
+            "category": "saludo",
+            "text": "Hola, le agradezco su llamada a cuentas especiales. Soy Liliana Hernández, ¿me indica su nombre para dirigirnos, por favor?",
+            "tts_direction": "Di con tono sumamente amable y resolutivo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_pedir_cuenta_v2": {
+            "category": "sondeo",
+            "text": "¿Sería tan amable de indicarme su número de cuenta o el teléfono que tiene registrado con nosotros?",
+            "tts_direction": "Di con tono paciente y servicial:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_pedir_cuenta_v3": {
+            "category": "sondeo",
+            "text": "Para poder ayudarle, ¿me proporciona su número de cuenta o bien el teléfono que dejó de contacto?",
+            "tts_direction": "Di con tono dispuesto a ayudar:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_pedir_titular_v2": {
+            "category": "sondeo",
+            "text": "¿Sería tan amable de confirmarme a nombre de quién está contratado el servicio?",
+            "tts_direction": "Di con tono de validación rutinaria pero amable:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_pedir_titular_v3": {
+            "category": "sondeo",
+            "text": "Solo para validar los datos, ¿me podría indicar el nombre completo de la persona titular?",
+            "tts_direction": "Di con tono claro y profesional:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_motivo_baja_v2": {
+            "category": "sondeo",
+            "text": "Comprendo por qué nos llama. ¿Me puede platicar un poco más sobre la razón por la cual está pensando en cancelar?",
+            "tts_direction": "Di con un tono sumamente comprensivo, invitando al diálogo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_motivo_baja_v3": {
+            "category": "sondeo",
+            "text": "Claro, lo entiendo. ¿Podría explicarme a detalle qué fue lo que pasó y por qué tomó la decisión de cancelar su servicio?",
+            "tts_direction": "Di con tono muy empático y de escucha activa:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_espera_v2": {
+            "category": "transicion",
+            "text": "Deme un segundito en la línea. Estoy checando el sistema para ver los detalles de su cuenta y validar sus plazos. Manténgase en la llamada, por favor.",
+            "tts_direction": "Di con tono ágil y asegurando atención:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_espera_v3": {
+            "category": "transicion",
+            "text": "Por favor, acompáñeme un momento en la línea mientras reviso su expediente y verifico el estado de su contrato. No me vaya a colgar.",
+            "tts_direction": "Di con tono cuidadoso y atento:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_cesion_derechos_v2": {
+            "category": "retencion",
+            "text": "Le comento una opción extra: ¿no ha pensado en cederle su servicio a algún conocido o familiar? Así no se pierde la cuenta y podemos traspasar los derechos.",
+            "tts_direction": "Di con tono casual, como ofreciendo una excelente idea espontánea:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_cesion_derechos_v3": {
+            "category": "retencion",
+            "text": "Oiga, ¿y de casualidad no tendrá algún amigo o familiar al que le podamos pasar el servicio? Así hacemos un cambio de titular y no perdemos los beneficios de la cuenta.",
+            "tts_direction": "Di con tono amigable y propositivo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_entrega_equipo_v2": {
+            "category": "cierre",
+            "text": "Le informo que el folio que le daré será válido por treinta días. Es indispensable que lleve su identificación oficial y todos los equipos físicos, como el módem y los controles, a una de nuestras sucursales para que quede cancelado.",
+            "tts_direction": "Di con tono muy claro, con peso legal pero amable:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_entrega_equipo_v3": {
+            "category": "cierre",
+            "text": "Tome en cuenta que para cerrar la cancelación por completo, tiene un máximo de treinta días para presentarse en sucursal con el módem, cables y decodificadores, además de llevar su identificación oficial.",
+            "tts_direction": "Di con tono explicativo y concluyente:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_despedida_v2": {
+            "category": "cierre",
+            "text": "Muchísimas gracias por su tiempo y por habernos llamado. En un momento escuchará una pequeña encuesta de calidad. Que pase muy buena tarde.",
+            "tts_direction": "Di con tono muy agradecido y cálido:",
+            "variables": [],
+            "prerecord": true
+        },
+        "ret_despedida_v3": {
+            "category": "cierre",
+            "text": "Le agradezco mucho la paciencia durante la llamada. Al terminar, le pediría si me puede apoyar contestando una breve encuesta. Que tenga un bonito día.",
+            "tts_direction": "Di con tono de sonrisa cálida y cierre amable:",
+            "variables": [],
+            "prerecord": true
+        }
+    }
+}

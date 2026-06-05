@@ -35,7 +35,7 @@ class AudioRouter:
         
         # Rutas por defecto
         base_dir = os.path.join(os.path.dirname(__file__), '..')
-        self.scripts_path = scripts_path or os.path.join(base_dir, 'config', 'retention_scripts.json')
+        self.scripts_path = scripts_path or os.path.join(base_dir, 'assets', 'retencion', 'scripts.json')
         
         # Cargar catálogo
         with open(self.scripts_path, 'r', encoding='utf-8') as f:
@@ -140,45 +140,14 @@ class AudioRouter:
             logger.info(f"🎙️ [AudioRouter] Sirviendo pregrabado: {script_id}")
             return self._cache[script_id]
 
-        # Caso 2: Sin variables pero no en cache → genera y cachea
+        # Caso 2: Sin variables pero no en cache → retornar None (no generar TTS)
         if not required_vars:
-            logger.info(f"🔄 [AudioRouter] Generando pregrabado ausente: {script_id}")
-            pcm = await self._generate_tts(script)
-            if pcm:
-                self._cache[script_id] = pcm
-                self._save_wav(script_id, pcm)
-            return pcm
-
-        # Caso 3: Con variables → generar TTS dinámico
-        if variables is None:
-            variables = {}
-        
-        # Verificar que todas las variables requeridas estén presentes
-        missing = [v for v in required_vars if v not in variables]
-        if missing:
-            logger.error(f"❌ [AudioRouter] Variables faltantes para '{script_id}': {missing}")
+            logger.warning(f"⚠️ [AudioRouter] Pregrabado '{script_id}' ausente en disco. No se generará TTS dinámico. Retornando None...")
             return None
 
-        # Construir cache key con variables
-        cache_key = self._make_cache_key(script_id, variables)
-        if cache_key in self._cache:
-            logger.info(f"🎙️ [AudioRouter] Sirviendo TTS cacheado: {script_id} ({variables})")
-            return self._cache[cache_key]
-
-        # Generar audio dinámico con variables interpoladas
-        interpolated_script = dict(script)
-        text = script['text']
-        for var_name, var_value in variables.items():
-            text = text.replace(f'{{{var_name}}}', str(var_value))
-        interpolated_script['text'] = text
-
-        logger.info(f"⚡ [AudioRouter] Generando TTS dinámico: {script_id} → '{text[:60]}...'")
-        pcm = await self._generate_tts(interpolated_script)
-        if pcm:
-            self._cache[cache_key] = pcm
-            # Guardar con nombre que incluya hash para no saturar disco
-            self._save_wav(f"{script_id}_{cache_key[:8]}", pcm)
-        return pcm
+        # Caso 3: Con variables → retornar None (no generar TTS dinámico)
+        logger.warning(f"⚠️ [AudioRouter] El script '{script_id}' requiere variables o es dinámico. No se generará TTS dinámico. Retornando None...")
+        return None
 
     async def _generate_tts(self, script: dict) -> bytes | None:
         """Genera audio usando Gemini TTS API (generate_content con modalidad AUDIO)."""
@@ -265,11 +234,19 @@ class AudioRouter:
                     k, v = pair.split('=', 1)
                     var_dict[k.strip()] = v.strip()
         
-        # La ejecución real del audio se hace en agent_core al procesar el tool response
-        # Aquí solo validamos y retornamos el resultado
         script = self.scripts[script_id]
+        required_vars = script.get('variables', [])
         
-        # Marcar en un atributo la solicitud pendiente para que agent_core la procese
+        # Verificar existencia física del archivo
+        import os
+        filename = f"{script_id}.wav"
+        filepath = os.path.join(self.audio_dir, filename)
+        
+        if required_vars or not os.path.exists(filepath):
+            logger.warning(f"⚠️ [AudioRouter] Gemini intentó reproducir '{script_id}' de forma pregrabada pero requiere variables o no existe físico. Denegando y ordenando viva voz...")
+            return f"Error: El script '{script_id}' requiere variables dinámicas ({required_vars}) o no tiene audio físico pregrabado en disco. NUNCA uses la herramienta reproducir_audio_pregrabado para este audio. Dilo tú directamente de viva voz en tiempo real con tu propia voz de IA."
+        
+        # La ejecución real del audio se hace en agent_core al procesar el tool response
         self._pending_playback = {
             'script_id': script_id,
             'variables': var_dict,

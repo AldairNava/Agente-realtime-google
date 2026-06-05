@@ -10,8 +10,8 @@ class ToolDispatcher:
     def __init__(self, config: dict = None, extra_tools: list = None):
         self.rag = KnowledgeRAG()
         self.vicidial = VicidialDatabase()
-        vici_cfg = config.get('vicidial_api') if config else None
-        self.api = VicidialAPI(vici_cfg) if vici_cfg else None
+        vici_cfg = (config.get('vicidial_api') if config else None) or {}
+        self.api = VicidialAPI(vici_cfg)
         
         self.available_tools = [
             self.rag.consultar_datos_mundial_2026,
@@ -26,7 +26,9 @@ class ToolDispatcher:
                 self.api.pause_code,
                 self.api.generar_folio_cancelacion,
                 self.api.external_login,
-                self.api.external_dial
+                self.api.external_dial,
+                self.api.transfer_conference,
+                self.api.actualizar_comentarios_cliente
             ])
             
         if extra_tools:

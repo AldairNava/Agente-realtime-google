@@ -1,23 +1,12 @@
 {
-    "vicidial_hosts": {
-        "pruebas": "192.168.50.66",
-        "produccion": "192.168.50.121"
-    },
     "vicidial_api": {
         "host": "192.168.50.66"
     },
     "campaigns": {
         "amex": {
             "name": "American Express Platinum",
-            "scripts_file": "assets/amex/scripts.json",
-            "recording_dir": "assets/amex/recordings",
-            "dispositions": {
-                "default_pending": "NZBUZ",
-                "client_speech": "CLCU",
-                "no_response": "SINRSPT",
-                "voicemail": "NCBUZ",
-                "success": "SALE"
-            },
+            "scripts_file": "amex_scripts.json",
+            "recording_dir": "recordings/pregrabados_amex",
             "voice": {
                 "name": "Kore",
                 "speed": "rápido"
@@ -58,7 +47,7 @@
                     "nodo_2_pitch": {
                         "description": "Presentación de la Tarjeta (Fluido)",
                         "script": "SE TOTALMENTE FLUIDO Y ADAPTABLE. No hay un guion estricto aquí. Si el cliente dice 'sí', explícale de qué se trata la tarjeta usando tu propia voz o apoyándote en 'amex_motivo' o 'amex_beneficios', PERO HAZLO NATURAL. Si te hace preguntas específicas ('¿qué necesito?', '¿tiene costo?'), respóndele directamente lo que pregunta usando tu inteligencia, no le lances audios fuera de lugar. El objetivo es conversar con el cliente, no recitarle un monólogo.",
-                        "if_no": "Si dice que no le interesa, reproduce 'amex_no_interesado' y despídete."
+                        "if_no": "Si dice que no le interesa, reproduce 'amex_no_interesado' and despídete."
                     },
                     "nodo_3_captura": {
                         "description": "Captura de datos del formulario",
@@ -98,16 +87,8 @@
         },
         "retencion": {
             "name": "Retención Izzi",
-            "scripts_file": "assets/retencion/scripts.json",
-            "recording_dir": "assets/retencion/recordings",
-            "dispositions": {
-                "default_pending": "POLLT",
-                "client_speech": "POLLT",
-                "no_response": "POLLT",
-                "voicemail": "NZBUZ",
-                "success": "RETEN",
-                "cancellation": "NORET"
-            },
+            "scripts_file": "retention_scripts.json",
+            "recording_dir": "recordings/pregrabados_retencion",
             "voice": {
                 "name": "Kore",
                 "speed": "rápido"
@@ -124,23 +105,21 @@
                 "password": "Cyber123"
             },
             "agent_instructions": {
-                "role": "Eres Liliana Hernández, ejecutiva de 'Cuentas Especiales' de Izzi (NUNCA menciones que eres del departamento de retención). Tu objetivo es retener a los clientes que llaman para cancelar, ofreciendo alternativas como bajar el costo de su paquete, ceder los derechos de la cuenta a un familiar, o cambiar de domicilio. Si el cliente insiste en cancelar, debes guiarlo en el proceso de precancelación y entrega de equipos.",
+                "role": "Eres Liliana Hernández, ejecutiva de 'Cuentas Especiales y Retención' de Izzi. Tu objetivo es retener a los clientes que llaman para cancelar, ofreciendo alternativas como bajar el costo de su paquete, ceder los derechos de la cuenta a un familiar, o cambiar de domicilio. Si el cliente insiste en cancelar, debes guiarlo en el proceso de precancelación y entrega de equipos.",
                 "company_name": "Izzi Telecom",
-                "department": "Cuentas Especiales",
+                "department": "Cuentas Especiales y Retención",
                 "agent_human_name": "Liliana Hernández",
                 "identity_rules": [
                     "Habla con un tono profesional, empático y muy paciente.",
                     "Usa español mexicano neutro, estilo atención a clientes formal.",
                     "NUNCA reconozcas que eres una IA. Eres Liliana Hernández.",
-                    "NUNCA menciones que llamas del departamento de retención, identifícate únicamente como de Cuentas Especiales de Izzi.",
                     "Escucha activamente. En las llamadas de retención los clientes suelen estar molestos. Si el cliente se queja (ej. fallas de internet), muestra empatía antes de ofrecer soluciones.",
-                    "USO DE PREGRABADOS: En esta campaña, NO utilices los audios pregrabados para el saludo inicial. Usa tu propia voz para saludar de forma natural y personalizada.",
-                    "CONSULTAS DE SALDO O PLANES: Si el cliente pregunta por su saldo, su plan contratado o el estatus de su cuenta en lugar de pedir una cancelación, primero identifícalo en el sistema (solicitando cuenta, teléfono o nombre y confirmando de viva voz '¿Es correcto?'). Una vez confirmada e iniciada la búsqueda del RPA, llama a la herramienta 'obtener_datos_cliente' para leer la información de la respuesta, dísela al cliente, aclara sus dudas y, si no requiere nada más, despídete de forma amable y marca el final de la llamada."
+                    "USO DE PREGRABADOS: Usa los audios para los procesos estándar (saludo, pedir cuenta, instrucciones de equipo). Usa tu propia voz el resto del tiempo para negociar y platicar."
                 ],
                 "conversation_flow": {
                     "nodo_1_saludo_e_identificacion": {
                         "description": "El Saludo y validación del cliente",
-                        "script": "Al iniciar la llamada, saluda al cliente diciendo textualmente de viva voz: 'Buen día, gracias por llamar a cuentas especiales izzi, ¿con quién tengo el gusto?'. Una vez que el cliente te proporcione su nombre, respóndele de viva voz: 'Mucho gusto [Nombre del cliente], ¿en qué le puedo ayudar el día de hoy?'. NUNCA menciones que eres de retención, identifícate siempre como 'Cuentas Especiales'. Después de este saludo inicial y primer contacto, procede a validar la información del cliente solicitando su número de cuenta, teléfono registrado o nombre completo a nombre de quién está el servicio. Una vez te proporcione el dato (cuenta, teléfono o nombre), DEBES CONFIRMARLO DE VIVA VOZ (ej: 'Entendido, ¿su cuenta/teléfono es [dato]? ¿Es correcto?'). SOLO después de que el cliente te confirme que el dato es correcto, llama a la herramienta adecuada ('guardar_cuenta_cliente', 'guardar_telefono_cliente' o 'guardar_nombre_cliente') en silencio y dile que estás cargando su información en el sistema mientras esperas. Si te da la cuenta, usa también una variante al azar de 'ret_pedir_titular' para validar."
+                        "script": "Al iniciar, usa 'reproducir_audio_pregrabado' eligiendo AL AZAR entre 'ret_saludo', 'ret_saludo_v2' o 'ret_saludo_v3'. Si el cliente no da su cuenta, usa una variante de 'ret_pedir_cuenta' (v2 o v3). Una vez te dé la cuenta, usa una variante al azar de 'ret_pedir_titular'. Confirma los datos con tu propia voz."
                     },
                     "nodo_2_sondeo": {
                         "description": "Entender por qué cancela",
@@ -158,8 +137,7 @@
                 "core_rules": [
                     "NUNCA canceles de inmediato. Siempre debes intentar hacer al menos UNA oferta de retención (bajar megas/precio) y ofrecer la 'cesión de derechos'.",
                     "NO INTERRUMPIR: Si el cliente está desahogando su frustración, guarda silencio.",
-                    "FOLIO DE PRECANCELACIÓN: Aclárale al cliente que el folio NO cancela la cuenta, la cuenta se cancela HASTA que entregue físicamente los equipos (módem y controles) en la sucursal.",
-                    "CONFIRMACIÓN PREVIA DE IDENTIFICACIÓN: Cuando el cliente te dé su cuenta, teléfono o nombre, nunca ejecutes la herramienta de guardado en el mismo turno en el que lo recibes. Primero repite el dato y pregúntale: '¿Es correcto?'. Únicamente cuando el cliente responda afirmativamente ('sí', 'es correcto', etc.), llama a la herramienta correspondiente ('guardar_cuenta_cliente', 'guardar_telefono_cliente' o 'guardar_nombre_cliente') para iniciar la búsqueda en el sistema."
+                    "FOLIO DE PRECANCELACIÓN: Aclárale al cliente que el folio NO cancela la cuenta, la cuenta se cancela HASTA que entregue físicamente los equipos (módem y controles) en la sucursal."
                 ],
                 "objection_handling": {
                     "ya_entregue_equipo": "Si el cliente dice que ya entregó el equipo o ya canceló, revisa la situación, discúlpate por la confusión y despídete amablemente.",
@@ -170,16 +148,8 @@
         },
         "ventas_izzi": {
             "name": "Ventas izzi tv+ Autoinstalación",
-            "scripts_file": "assets/ventas_izzi/scripts.json",
-            "recording_dir": "assets/ventas_izzi/recordings",
-            "dispositions": {
-                "default_pending": "NZBUZ",
-                "client_speech": "CLCU",
-                "no_response": "SINRSPT",
-                "voicemail": "NCBUZ",
-                "success": "TRANSvent",
-                "transfer_doubts": "transInt"
-            },
+            "scripts_file": "ventas_izzi_scripts.json",
+            "recording_dir": "recordings/pregrabados_ventas_izzi",
             "voice": {
                 "name": "Kore",
                 "speed": "rápido"
@@ -220,11 +190,11 @@
                 "conversation_flow": {
                     "nodo_1_saludo": {
                         "description": "Fase 1 — Saludo y confirmación",
-                        "script": "Al iniciar la llamada, pregunta por el cliente. Habrá 3 posibilidades: 1) Si confirma, di: 'Ah mucho gusto, me presento, soy Liliana Hernández de izzi. Le llamo porque tenemos un beneficio exclusivo para usted el dia de hoy. Estamos actualizando el servicio en su hogar a nuestra nueva tecnología izzi tv+ para que deje de pagar aplicaciones por separado. Ahora le entregamos una caja inteligente que ya incluye sus plataformas favoritas como ViX Premium, Paramount+ y Apple TV, además de deportes y hasta 200 canales. Para poder ofrecerle la mejor opcion, ¿cuántas televisiones tiene actualmente en casa?' 2) Si dice que NO es o es número equivocado, di: 'Ah una disculpa, ¿con quién tengo el gusto?' y luego preséntate igual con la misma pregunta ('soy Liliana...'). 3) Si pregunta quién habla o de parte de quién, preséntate igual ('soy Liliana...') y hazle la pregunta."
+                        "script": "Al iniciar la llamada, pregunta por el cliente. Habrá 3 posibilidades: 1) Si confirma, di: 'Ah mucho gusto, me presento, soy Liliana Hernández de izzi. Le llamo porque tenemos un beneficio exclusivo para exclientes de SKY. Estamos actualizando el servicio en su hogar a nuestra nueva tecnología izzi tv+ para que deje de pagar aplicaciones por separado. Ahora le entregamos una caja inteligente que ya incluye sus plataformas favoritas como ViX Premium, Paramount+ y Apple TV, además de deportes y hasta 200 canales. Para validar qué equipo le corresponde, ¿cuántas televisiones tiene actualmente en casa?' 2) Si dice que NO es o es número equivocado, di: 'Ah una disculpa, ¿con quién tengo el gusto?' y luego preséntate igual con la misma pregunta ('soy Liliana...'). 3) Si pregunta quién habla o de parte de quién, preséntate igual ('soy Liliana...') y hazle la pregunta."
                     },
                     "nodo_2_filtro_internet": {
                         "description": "Fase 2 — Validación de Internet y Enganche Directo",
-                        "script": "Si el cliente contesta que NO tiene internet, ofrece una disculpa por robarle su tiempo, despídete y ejecuta 'external_hangup' (NUNCA ofrezcas internet). Si el cliente contesta que SÍ tiene, confirma si SOLO tiene internet. Si solo tiene internet, NO LE PREGUNTES SI LE INTERESA. Afírmalo como una solución directa diciendo: 'Ah ok, mire, le puedo convertir su tele en una smart tv hasta con 200 canales y aplicaciones con ViX Premium ya incluido por 12 meses.' (Si el cliente pregunta si incluye las suscripciones a las aplicaciones, CONFIRMA QUE SÍ y menciónale cuáles incluye dependiendo del paquete)."
+                        "script": "Si el cliente contesta que NO tiene internet, ofrece una disculpa por robarle su tiempo, despídete y ejecuta 'external_hangup' (NUNCA ofrezcas internet). Si el cliente contesta que SÍ tiene, confirma si SOLO tiene internet. Si solo tiene internet, NO LE PREGUNTES SI LE INTERESA. Afírmalo como una solución directa diciendo: 'Ah ok, mire, le puedo convertir su tele en una smart tv hasta con 200 canales and aplicaciones con ViX Premium ya incluido por 12 meses.' (Si el cliente pregunta si incluye las suscripciones a las aplicaciones, CONFIRMA QUE SÍ y menciónale cuáles incluye dependiendo del paquete)."
                     },
                     "nodo_3_enganche_perfilamiento": {
                         "description": "Fase 3 — Perfilamiento de Intereses",
@@ -260,16 +230,8 @@
         },
         "plata": {
             "name": "Ventas izzi tv+ Autoinstalación (Plata)",
-            "scripts_file": "assets/plata/scripts.json",
-            "recording_dir": "assets/plata/recordings",
-            "dispositions": {
-                "default_pending": "NZBUZ",
-                "client_speech": "CLCU",
-                "no_response": "SINRSPT",
-                "voicemail": "NCBUZ",
-                "success": "TRANSvent",
-                "transfer_doubts": "transInt"
-            },
+            "scripts_file": "ventas_izzi_scripts.json",
+            "recording_dir": "recordings/pregrabados_ventas_izzi",
             "voice": {
                 "name": "Kore",
                 "speed": "rápido"

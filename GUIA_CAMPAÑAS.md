@@ -7,7 +7,7 @@ Esta guía explica cómo agregar nuevas campañas, modificar las existentes y ut
 Para añadir una campaña (ejemplo: `plata`), sigue estos 3 pasos:
 
 ### Paso A: Crear el archivo de guiones
-Crea un archivo en `config/plata_scripts.json` con las frases que usará el agente. Puedes copiar el contenido de `amex_scripts.json` como base.
+Crea la estructura `assets/plata/` y añade un archivo `scripts.json` con las frases que usará el agente. Puedes copiar el contenido de `assets/amex/scripts.json` como base.
 
 ### Paso B: Registrar en `voice_config.json`
 Añade un nuevo bloque en la sección `"campaigns"`:
@@ -15,8 +15,8 @@ Añade un nuevo bloque en la sección `"campaigns"`:
 ```json
 "plata": {
     "name": "Campaña Plata",
-    "scripts_file": "plata_scripts.json",
-    "recording_dir": "recordings/pregrabados_plata",
+    "scripts_file": "assets/plata/scripts.json",
+    "recording_dir": "assets/plata/recordings",
     "voice": { "name": "Kore", "speed": "rápido" },
     "emotion": { "base_tone": "profesional", "energy_level": "medio" },
     "vicidial_api": {
@@ -58,8 +58,8 @@ El sistema creará automáticamente la carpeta definida en `"recording_dir"` la 
 
 ### 🎙️ Grabación de Audios (Gestión de Pregrabados)
 
-El flujo correcto es: **1) editar el `.txt` → 2) ejecutar el comando de grabación.**
-Los archivos `.txt` están en `config/textos_audios_<nombre_campaña>/`.
+El flujo correcto es: **1) editar el campo "text" en `assets/<nombre_campaña>/scripts.json` → 2) ejecutar el comando de grabación.**
+Los archivos de frases están en `assets/<nombre_campaña>/scripts.json`.
 
 | Objetivo | Comando |
 | :--- | :--- |
@@ -81,5 +81,5 @@ python main.py --campania retencion --voice grabacion --txt 1
 ## 3. Notas Importantes
 - **Campaña Obligatoria**: Siempre debes usar `--campania <nombre>`.
 - **Modo Híbrido por defecto**: Si no indicas `--voice`, el agente usará el modo híbrido automáticamente.
-- **Los `.txt` son la fuente de verdad**: Edita solo el `.txt` correspondiente y regenera el audio. No es necesario tocar ningún archivo JSON.
+- **El JSON es la fuente de verdad**: Edita el texto correspondiente dentro de `assets/<campaña>/scripts.json` y regenera el audio. Los archivos `.txt` ya no se utilizan.
 - **Modo Producción**: Requiere que la IP del servidor y el puerto SIP estén correctamente configurados en el bloque `"sip_config"` de `voice_config.json`.

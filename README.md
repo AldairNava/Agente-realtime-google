@@ -85,7 +85,7 @@ Configurado para indagar motivos, ofrecer beneficios escalonados y generar folio
 
 ### Grabación / Actualización de Audios
 
-Edita el `.txt` en `config/textos_audios_<campaña>/` y ejecuta:
+Edita la frase correspondiente en `assets/<campaña>/scripts.json` y ejecuta:
 
 | Objetivo | Comando |
 | :--- | :--- |
@@ -95,3 +95,32 @@ Edita el `.txt` en `config/textos_audios_<campaña>/` y ejecuta:
 ---
 > [!IMPORTANT]
 > **Seguridad**: Asegúrate de que el acceso a `agc/api.php` esté restringido por IP en tu servidor Asterisk/Vicidial.
+
+---
+
+## 🛠️ Configuración de Campaña de Retención y RPAs
+
+La campaña de retención utiliza robots RPA autónomos para interactuar con los portales de Izzi y Siebel en segundo plano.
+
+### 🔌 Requisito: Extensión de Chrome para RPA
+
+Para evitar subir perfiles de Chrome pesados y con datos personales al repositorio, el sistema crea un perfil local limpio y persistente para cada equipo de manera automática.
+
+La primera vez que ejecutes los scripts de RPA:
+1. El script detectará que el perfil de Chrome es nuevo.
+2. Abrirá automáticamente el navegador Chrome visible y te redirigirá a la Chrome Web Store para instalar la extensión de RPA.
+3. Mostrará un mensaje/alerta indicando: **"Favor de instalar la extensión de RPA"**.
+4. Haz clic en **"Agregar a Chrome"** / **"Add to Chrome"** e instala la extensión de forma manual en esa ventana.
+5. Una vez instalada, presiona `ENTER` en la consola de comandos de tu terminal. El script cerrará el navegador y finalizará.
+6. A partir de la segunda ejecución, el RPA continuará de forma automática sin pedir reinstalar la extensión.
+
+### Ejecución de RPAs
+
+Los RPAs se inician automáticamente al arrancar el agente en modo local con la campaña de retención:
+```bash
+python main.py --campania retencion --mode local
+```
+
+También se pueden ejecutar de forma individual para pruebas manuales:
+- **RPA Retención Izzi**: `python tools/retencion_rpa.py --test`
+- **RPA Siebel**: `python tools/siebel_retencion_rpa.py --test`

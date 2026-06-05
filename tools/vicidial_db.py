@@ -1,39 +1,112 @@
 import logging
+import socket
+import pymysql
+from pymysql.cursors import DictCursor
 
 logger = logging.getLogger(__name__)
 
+DB_CONFIG = {
+    "host": "192.168.50.121",
+    "user": "lhernandez",
+    "password": "lhernandez10",
+    "database": "asterisk",
+    "connect_timeout": 5,
+    "charset": "utf8mb4",
+}
+
+
+def _get_local_ip() -> str:
+    """Devuelve la IP local del equipo."""
+    return socket.gethostbyname(socket.gethostname())
+
+
+def actualizar_actividad(actividad: str) -> None:
+    """
+    Actualiza el campo 'actividad' del agente en agentesDepuracion
+    según la IP del equipo donde corre el agente.
+    Valores comunes: 'Tipificando', 'Encendido', 'Apagado', 'Llamando'.
+    """
+    ip = _get_local_ip()
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        with conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE agentesDepuracion SET actividad = %s WHERE ip = %s",
+                    (actividad, ip)
+                )
+            conn.commit()
+        logger.info(f"[VicidialDB] Actividad actualizada a '{actividad}' para IP {ip}")
+    except Exception as e:
+        logger.error(f"[VicidialDB] Error al actualizar actividad: {e}")
+
+
+def actualizar_status(status: int) -> None:
+    """
+    Actualiza el campo 'status' del agente en agentesDepuracion.
+    1 = activo, 0 = inactivo.
+    """
+    ip = _get_local_ip()
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        with conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE agentesDepuracion SET status = %s WHERE ip = %s",
+                    (status, ip)
+                )
+            conn.commit()
+        logger.info(f"[VicidialDB] Status actualizado a '{status}' para IP {ip}")
+    except Exception as e:
+        logger.error(f"[VicidialDB] Error al actualizar status: {e}")
+
+
+def actualizar_running(running: int) -> None:
+    """
+    Actualiza el campo 'running' del agente en agentesDepuracion.
+    1 = agente corriendo, 0 = detenido.
+    """
+    ip = _get_local_ip()
+    try:
+        conn = pymysql.connect(**DB_CONFIG)
+        with conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE agentesDepuracion SET running = %s WHERE ip = %s",
+                    (running, ip)
+                )
+            conn.commit()
+        logger.info(f"[VicidialDB] Running actualizado a '{running}' para IP {ip}")
+    except Exception as e:
+        logger.error(f"[VicidialDB] Error al actualizar running: {e}")
+
+
 class VicidialDatabase:
-    """Mockup de consultas tipo SQL hacia el servidor DB de Asterisk/CRM"""
-    def __init__(self):
-        # Registros ficticios en memoria
-        self.clientes = {
-            "5512345678": {"nombre": "Juan Pérez González", "deuda": "$500 MXN vencida", "estatus": "Alta / Activo", "paquete": "Internet Simétrico Plus"},
-            "8199887766": {"nombre": "María López Torres", "deuda": "$0 MXN (Al Corriente)", "estatus": "Cuenta Suspendida a petición del usuario", "paquete": "Telefonía Básica"},
-            "5584268222": {"nombre": "Erik Garcia Cuevas", "deuda": "$0 MXN (Al Corriente)", "estatus": "Alta / Activo", "paquete": "Platinum Card - Preaprobado", "limite_preaprobado": "$85,000 MXN", "buro": "Sin observaciones", "antiguedad_crediticia": "4 años"}
-        }
+    """Consultas generales al CRM/BD de Asterisk."""
 
     def consultar_cliente_por_telefono(self, telefono: str) -> str:
         """
-        Busca el perfil de un cliente (su deuda y sus servicios activos) a partir de su número de teléfono. 
-        Pídele verbalmente al usuario sus 10 dígitos y mételos aquí para confirmarlo en sistema.
+        Busca el perfil de un cliente a partir de su número de teléfono.
         Parámetros obligatorios:
-          - telefono (str): El número sin ningún espacio ni guiones, ej. '5512345678'.
+          - telefono (str): El número sin espacios ni guiones, ej. '5512345678'.
         """
-        logger.info(f"[Asterisk SQL] Lanzando consulta paralela por el ANI/Número: {telefono}")
-        # Limpieza sencilla
+        logger.info(f"[VicidialDB] Consulta por teléfono: {telefono}")
         telefono = str(telefono).replace(" ", "").replace("-", "")
-        
-        if telefono in self.clientes:
-            c = self.clientes[telefono]
-            info = f"Registro CRM encontrado -> Nombre: {c['nombre']}, Estatus: {c['estatus']}, Deuda: {c['deuda']}"
-            if c.get('paquete'):
-                info += f", Producto: {c['paquete']}"
-            if c.get('limite_preaprobado'):
-                info += f", Límite Preaprobado: {c['limite_preaprobado']}"
-            if c.get('buro'):
-                info += f", Buró: {c['buro']}"
-            if c.get('antiguedad_crediticia'):
-                info += f", Antigüedad Crediticia: {c['antiguedad_crediticia']}"
-            return info + "."
-            
-        return f"No pude extraer datos. El número telefónico {telefono} no aparece en la base de datos de Vicidial asignado a ninguna cuenta."
+        try:
+            conn = pymysql.connect(**DB_CONFIG)
+            with conn:
+                with conn.cursor(DictCursor) as cursor:
+                    cursor.execute(
+                        "SELECT * FROM vicidial_list WHERE phone_number = %s LIMIT 1",
+                        (telefono,)
+                    )
+                    row = cursor.fetchone()
+            if row:
+                return (
+                    f"Registro CRM: Nombre={row.get('first_name','')} {row.get('last_name','')}, "
+                    f"Estado={row.get('status','')}, Lead ID={row.get('lead_id','')}"
+                )
+            return f"No se encontró registro para el teléfono {telefono}."
+        except Exception as e:
+            logger.error(f"[VicidialDB] Error al consultar teléfono: {e}")
+            return f"Error al consultar la base de datos: {e}"

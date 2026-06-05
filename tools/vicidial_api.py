@@ -20,6 +20,13 @@ class VicidialAPI:
         self.phone_login = config.get('phone_login')
         self.phone_pass = config.get('phone_pass')
         self.campaign_id = config.get('campaign_id')
+        
+        # Bandera para rastrear si se llamó a external_status
+        self._status_called = False
+        self.call_hungup_sent = False
+        self._pending_status = None
+        self.last_status_sent = "SIN_ESTATUS"
+        self.phantom = None
 
     def external_login(self):
         """
@@ -77,12 +84,44 @@ class VicidialAPI:
             return f"Error: {e}"
 
     def external_hangup(self):
-        """Cuelga la llamada activa del agente."""
-        return self._call_api("external_hangup", {"value": "1"})
+        """Cuelga la llamada activa del agente y tipifica con la de espera (o fallback) tras 3 segundos."""
+        if getattr(self, 'call_hungup_sent', False):
+            logger.info("🛑 [VicidialAPI] external_hangup already called, skipping duplicate.")
+            return "SUCCESS: already hung up"
+        self.call_hungup_sent = True
+        
+        # Guardar una copia local del status antes de dormir para evitar condiciones de carrera
+        status_to_send = self._pending_status if self._pending_status else "NI"
+        
+        # 1. Colgar la llamada inmediatamente
+        logger.info("🛑 [VicidialAPI] Ejecutando colgado de canal (external_hangup)...")
+        res_hangup = self._call_api("external_hangup", {"value": "1"})
+        
+        # 2. Esperar obligatoriamente 3 segundos a que cargue la pantalla de disposición de Vicidial
+        import time
+        logger.info("⏳ [VicidialAPI] Esperando 3 segundos en pantalla de disposición antes de tipificar...")
+        time.sleep(3.0)
+        
+        # 3. Aplicar la tipificación guardada (o fallback "NI")
+        logger.warning(f"💾 [VicidialAPI] Enviando tipificación de cierre: {status_to_send}")
+        self.last_status_sent = status_to_send
+        
+        # Llamar a la API real de external_status
+        res_status = self._call_api("external_status", {"value": status_to_send})
+        
+        # Limpiar variables para la siguiente llamada
+        self._pending_status = None
+        self._status_called = False
+        
+        return f"{res_hangup} | {res_status}"
 
     def external_status(self, status: str):
-        """Tipifica la llamada con un código (SALE, NI, DNC, etc.)."""
-        return self._call_api("external_status", {"value": status})
+        """Guarda la tipificación elegida por el agente de forma diferida."""
+        logger.info(f"📥 [VicidialAPI] Guardando tipificación pendiente: {status} (Se enviará al colgar)")
+        self._pending_status = status
+        self._status_called = True
+        self.last_status_sent = status
+        return f"SUCCESS: Tipificación '{status}' guardada de forma diferida. Se aplicará al colgar."
 
     def external_pause(self, paused: bool = True):
         """Pone o quita la pausa al agente."""
@@ -92,6 +131,22 @@ class VicidialAPI:
     def pause_code(self, code: str):
         """Establece un código de pausa (AUX, BREAK, MEAL, etc.)."""
         return self._call_api("pause_code", {"value": code})
+
+    def transfer_conference(self, ingroup: str, value: str = "1") -> str:
+        """
+        Transfiere la llamada activa a un ingroup/grupo de entrante en Vicidial.
+        """
+        logger.info(f"🔄 [VicidialAPI] Ejecutando transferencia real a la cola {ingroup}...")
+        try:
+            res = self._call_api("transfer_conference", {
+                "value": "LOCAL_CLOSER",
+                "ingroup_choices": ingroup
+            })
+            logger.info(f"VICIDIAL API [transfer_conference] Resultado: {res}")
+            return f"RESULTADO: {res}"
+        except Exception as e:
+            logger.error(f"Error en transferencia a {ingroup}: {e}")
+            return f"ERROR: {e}"
 
     def generar_folio_cancelacion(self, phone: str = ""):
         """Genera un folio de cancelación único para el cliente."""
@@ -119,3 +174,69 @@ class VicidialAPI:
                     if "lead_id:" in p:
                          data["lead_id"] = p.split("lead_id:")[1].strip()
         return data
+
+    def actualizar_comentarios_cliente(self, nombre_cliente: str, pantallas: str, paquete_ofrecido: str, cuenta: str = "", dudas_no_respondidas: str = "") -> str:
+        """
+        Actualiza el campo 'comments' (comentarios) del cliente en la llamada activa de Vicidial
+        antes de realizar una transferencia, inyectando el valor en el DOM y llamando al script de ViciDial.
+        """
+        logger.info("📝 [VicidialAPI] Iniciando actualización de comentarios del cliente...")
+        if not self.phantom:
+            logger.warning("⚠️ [VicidialAPI] No se puede actualizar comentarios: self.phantom no está inicializado (modo local / sin browser activo).")
+            return "SUCCESS (MOCKED): modo local / phantom inactivo"
+
+        try:
+            # Formatear el comentario final
+            comments_formatted = f"Nombre: {nombre_cliente} | Pantallas: {pantallas} | Paquete: {paquete_ofrecido}"
+            if cuenta:
+                comments_formatted += f" | Cuenta: {cuenta}"
+            if dudas_no_respondidas:
+                comments_formatted += f" | Dudas: {dudas_no_respondidas}"
+
+            # Código JavaScript para rellenar el textarea de comentarios y ejecutar el envío nativo
+            js_code = """
+            var comments_text = arguments[0];
+            var commentsEl = document.getElementById('comments');
+            if (commentsEl) {
+                commentsEl.value = comments_text;
+                if (typeof CustomerData_update === 'function') {
+                    CustomerData_update('YES');
+                    return 'SUCCESS: CustomerData_update executed';
+                }
+                if (typeof window.CustomerData_update === 'function') {
+                    window.CustomerData_update('YES');
+                    return 'SUCCESS: window.CustomerData_update executed';
+                }
+                return 'ERROR: comments textarea found but CustomerData_update function not found';
+            } else {
+                var iframes = document.getElementsByTagName('iframe');
+                for (var i = 0; i < iframes.length; i++) {
+                    try {
+                        var doc = iframes[i].contentDocument || iframes[i].contentWindow.document;
+                        var win = iframes[i].contentWindow;
+                        var ifEl = doc.getElementById('comments');
+                        if (ifEl) {
+                            ifEl.value = comments_text;
+                            if (typeof win.CustomerData_update === 'function') {
+                                win.CustomerData_update('YES');
+                                return 'SUCCESS: CustomerData_update executed in iframe';
+                            }
+                        }
+                    } catch(e) {}
+                }
+                return 'ERROR: comments textarea element not found';
+            }
+            """
+            
+            logger.info("🖥️ [VicidialAPI] Inyectando comentarios en el DOM de Chrome y ejecutando CustomerData_update('YES')...")
+            js_res = self.phantom.driver.execute_script(js_code, comments_formatted)
+            logger.info(f"VICIDIAL JS [CustomerData_update]: {js_res}")
+            
+            if "SUCCESS" in js_res:
+                return f"SUCCESS: {js_res} | Comentarios: {comments_formatted}"
+            else:
+                return f"WARNING: Petición inyectada pero se reportó: {js_res}"
+        except Exception as e:
+            logger.error(f"Error actualizando comentarios del cliente en navegador: {e}")
+            return f"ERROR: {e}"
+
