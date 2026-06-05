@@ -1058,7 +1058,6 @@ class VoiceAgent:
                             log_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', self.campania_name, 'registro_de_llamadas')
                             os.makedirs(log_dir, exist_ok=True)
                             json_path = os.path.join(log_dir, f"{self.campania_name}_{today_str}.json")
-                            txt_path = os.path.join(log_dir, f"{self.campania_name}_{today_str}.txt")
                             
                             api_cfg = self.tools_dispatcher.api
                             final_status = (api_cfg.last_status_sent if api_cfg else None) or self.final_disposition or "SIN_ESTATUS"
@@ -1076,20 +1075,6 @@ class VoiceAgent:
                             }
                             
                             calls_list = []
-                            # Si no existe el JSON pero sí el TXT viejo, hacer la migración para este día
-                            if not os.path.exists(json_path) and os.path.exists(txt_path):
-                                logger.info(f"Migrando registros existentes de {txt_path} a {json_path}...")
-                                try:
-                                    with open(txt_path, "r", encoding="utf-8") as f:
-                                        for line in f:
-                                            line_stripped = line.strip()
-                                            if line_stripped:
-                                                try:
-                                                    calls_list.append(json.loads(line_stripped))
-                                                except Exception:
-                                                    pass
-                                except Exception as mig_err:
-                                    logger.error(f"Error migrando .txt a .json: {mig_err}")
                             
                             # Leer registros existentes si el JSON ya existe
                             if os.path.exists(json_path):
@@ -1107,13 +1092,6 @@ class VoiceAgent:
                                 json.dump(calls_list, f, indent=4, ensure_ascii=False)
                                 
                             logger.info(f"💾 [Registro] Información de llamada guardada en JSON: {json_path}")
-                            
-                            # Eliminar .txt si existiera para que no quede duplicado
-                            if os.path.exists(txt_path):
-                                try:
-                                    os.remove(txt_path)
-                                except Exception:
-                                    pass
                         except Exception as log_err:
                             logger.error(f"Error al escribir registro JSON de llamada: {log_err}")
                             
