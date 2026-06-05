@@ -37,45 +37,10 @@
             "variables": [],
             "prerecord": true
         },
-        "plata_preguntar_ine_movil": {
-            "category": "validacion",
-            "text": "Excelente, para continuar con la solicitud, solo necesitamos saber: ¿cuenta con su INE físico y vigente en este momento? Y también dígame, ¿el número al que me comunico es móvil y de uso personal?",
-            "tts_direction": "Pregunta de forma clara y amable, esperando respuesta tras cada elemento:",
-            "variables": [],
-            "prerecord": true
-        },
-        "plata_aviso_buro": {
-            "category": "legal",
-            "text": "Al continuar con este trámite, usted autoriza a BANCO PLATA S.A. para tratar sus datos personales de conformidad con el Aviso de Privacidad visible en platacard.mx. Para efectos del trámite, también necesitamos su autorización para realizar una consulta ante las Sociedades de Información Crediticia, es decir, el Buró. ¿Nos autoriza a BANCO PLATA S.A. para proceder?",
-            "tts_direction": "Lee con tono claro, pausado y profesional de aviso legal:",
-            "variables": [],
-            "prerecord": true
-        },
-        "plata_preguntas_credito": {
-            "category": "perfilamiento",
-            "text": "Perfecto, le hago tres preguntas rápidas sobre su historial: ¿Ha ejercido algún crédito automotriz o hipotecario en los últimos dos años? ¿Cuenta actualmente con alguna tarjeta de crédito o departamental activa? Y de ser así, ¿me podría proporcionar los últimos 4 dígitos de alguna de ellas?",
-            "tts_direction": "Di con tono de recopilación rutinaria y amigable:",
-            "variables": [],
-            "prerecord": true
-        },
-        "plata_confirmacion_datos": {
-            "category": "captura",
-            "text": "Dígame, ¿su número telefónico es {telefono}? ¿Es correcto?",
-            "tts_direction": "Di de forma clara:",
-            "variables": ["telefono"],
-            "prerecord": false
-        },
-        "plata_whatsapp_codigo": {
-            "category": "captura",
-            "text": "¡Perfecto! Ya ingresé sus datos en nuestro sistema. En este momento debe estarle llegando un mensaje de confirmación por WhatsApp con un código de 4 dígitos. ¿Me lo podría proporcionar, por favor?",
-            "tts_direction": "Di con tono positivo y servicial:",
-            "variables": [],
-            "prerecord": true
-        },
         "plata_despedida": {
             "category": "cierre",
-            "text": "Damos por terminada la solicitud, fue un gusto poder comunicarme con usted, le recuerdo que mi nombre es Liliana Hernández en representación de Plata Card. ¡Que pase un excelente día!",
-            "tts_direction": "Despídete con calidez y cortesía:",
+            "text": "Perfecto, un momento por favor, no cuelgue, lo transfiero con mi compañero para continuar...",
+            "tts_direction": "Di con tono amable y de servicio, asegurando una transición suave:",
             "variables": [],
             "prerecord": true
         },
