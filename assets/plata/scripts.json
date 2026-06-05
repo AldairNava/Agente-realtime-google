@@ -25,21 +25,28 @@
         },
         "plata_pitch_inicial": {
             "category": "pitch",
-            "text": "¡Excelente noticia! Su perfil fue seleccionado de forma exclusiva para recibir una PlataCard preaprobada, una tarjeta de crédito sin anualidad de por vida y con la posibilidad de hasta 60 días para pagar sus compras sin intereses. ¿Le parece bien si continuamos con la solicitud?",
-            "tts_direction": "Di con entusiasmo y convicción, destacando la falta de anualidad y los 60 días de plazo:",
+            "text": "¡Excelente noticia! Le comento que el motivo de mi llamada es invitarlo a disfrutar de los beneficios de PlataCard, ya que su perfil fue seleccionado de forma exclusiva para recibir esta tarjeta de crédito sin anualidad de por vida. Al no pagar anualidad, usted disfruta al máximo y con total flexibilidad financiera, sin cargos ocultos ni sorpresas en el futuro. Además, con PlataCard usted tiene hasta 60 días para pagar sus compras sin intereses, que es el periodo de gracia más amplio del mercado, y también puede diferir compras mayores a 100 pesos a plazos de 3, 6, 9 y 12 meses sin intereses. Por si fuera poco, le devuelve hasta el 15% de cashback en las categorías de su elección que usted podrá seleccionar cada mes. Y lo mejor de todo es que el trámite es muy sencillo y la entrega se realiza en su domicilio en solo dos días. ¿Le parece bien si continuamos con su registro?",
+            "tts_direction": "Di con entusiasmo, seguridad y convicción, resaltando los beneficios y terminando con tono de pregunta amable:",
             "variables": [],
             "prerecord": true
         },
         "plata_objecion_cashback": {
             "category": "objeciones",
-            "text": "Comprendo, pero ¿no le gustaría recibir hasta el 15% de cashback automático en las compras que realice? Es uno de los increíbles beneficios con los que cuenta nuestra tarjeta.",
-            "tts_direction": "Di con tono persuasivo y empático, recalcando el beneficio del cashback:",
+            "text": "Comprendo su postura, pero recuerde que es una excelente oportunidad sin ningún costo, ya que no tiene anualidad de por vida. Además, el beneficio del 15% de cashback en las compras que ya realiza le devuelve dinero directo a su cuenta, y tiene plazos sin intereses en compras desde 100 pesos. Es una gran opción para tenerla como respaldo sin pagar nada extra. ¿Le parece bien si le damos una oportunidad y continuamos con su registro?",
+            "tts_direction": "Di con tono empático y persuasivo:",
+            "variables": [],
+            "prerecord": true
+        },
+        "plata_confirmar_nombre": {
+            "category": "captura",
+            "text": "Excelente. Para poder proceder, ¿me podría confirmar su nombre completo, por favor?",
+            "tts_direction": "Pregunta de forma clara y amable:",
             "variables": [],
             "prerecord": true
         },
         "plata_despedida": {
             "category": "cierre",
-            "text": "Perfecto, un momento por favor, no cuelgue, lo transfiero con mi compañero para continuar...",
+            "text": "De acuerdo, permítame un momento, lo voy a transferir con uno de mis compañeros para continuar con su registro.",
             "tts_direction": "Di con tono amable y de servicio, asegurando una transición suave:",
             "variables": [],
             "prerecord": true
