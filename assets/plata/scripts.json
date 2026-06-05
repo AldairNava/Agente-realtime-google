@@ -6,321 +6,83 @@
         "sample_width": 2,
         "channels": 1,
         "output_dir": "assets/plata/recordings",
-        "audio_profile": "# AUDIO PROFILE: Liliana Hernández\n## Ejecutiva de Ventas — izzi tv+ Autoinstalación\n### DIRECTOR'S NOTES\nStyle: Amigable, fresca y profesional. Voz cálida de vendedora de telecom que genuinamente quiere ayudar al cliente a conocer una buena oferta. Entusiasta pero NUNCA agresiva ni insistente. Tono consultivo y cercano.\nPacing: Ritmo natural y claro, ligeramente ágil para transmitir energía positiva. Pausas naturales entre beneficios para que el cliente procese. Articulación perfecta.\nAccent: Español mexicano neutro de Ciudad de México. Acento 100% natural, sin regionalismos marcados. Dicción clara y fresca."
+        "audio_profile": "# AUDIO PROFILE: Liliana Hernández\n## Ejecutiva de Ventas — PlataCard\n### DIRECTOR'S NOTES\nStyle: Amigable, persuasiva y profesional. Voz cálida de ejecutiva financiera. Entusiasta pero NUNCA agresiva ni insistente. Tono consultivo y cercano.\nPacing: Ritmo natural y claro. Pausas naturales entre beneficios para que el cliente procese. Articulación perfecta.\nAccent: Español mexicano neutro de Ciudad de México."
     },
     "scripts": {
-        "izzi_saludo": {
+        "plata_saludo": {
             "category": "saludo",
-            "text": "¡Hola, buenas tardes! Le llamo de izzi. Mi nombre es Liliana Hernández. ¿Tengo el gusto de hablar con el titular de la línea?",
-            "tts_direction": "Di con tono amigable, fresco y profesional, como el inicio de una llamada de ventas positiva:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_saludo_v2": {
-            "category": "saludo",
-            "text": "Qué tal, muy buenas tardes. Le saluda Liliana Hernández por parte de izzi. ¿Con quién tengo el gusto?",
-            "tts_direction": "Di con tono cálido y cordial, como iniciando una conversación agradable:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_saludo_v3": {
-            "category": "saludo",
-            "text": "Hola, buenas tardes. Soy Liliana Hernández, me comunico de izzi. ¿Me podría confirmar si hablo con el titular, por favor?",
-            "tts_direction": "Di con tono profesional y respetuoso, con una sonrisa en la voz:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_saludo_nombre": {
-            "category": "saludo",
-            "text": "¡Hola, buenas tardes! Le llamo de izzi. Mi nombre es Liliana Hernández. ¿Tengo el gusto de hablar con {nombre_cliente}?",
-            "tts_direction": "Di con tono amigable y personalizado, pronunciando el nombre claramente:",
+            "text": "Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con el señor o señorita {nombre_cliente}?",
+            "tts_direction": "Di con tono amigable y profesional, sonriendo al hablar:",
             "variables": ["nombre_cliente"],
             "prerecord": false
         },
-        "izzi_enganche": {
-            "category": "pitch",
-            "text": "¡Perfecto! Le llamo porque tenemos una promoción especial de izzi tv+ que le puede interesar. Ahora puede disfrutar de televisión con más de 84 canales desde solo 199 pesos al mes, y lo mejor: usted mismo instala su equipo de forma súper sencilla, sin esperar a un técnico. ¿Le gustaría conocer más detalles?",
-            "tts_direction": "Di con tono entusiasta y genuinamente emocionado por la oferta, resaltando el precio y la facilidad de instalación:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_enganche_v2": {
-            "category": "pitch",
-            "text": "Le platico rápidamente. Tenemos una promoción increíble de izzi tv+ con autoinstalación. Desde 199 pesos al mes tiene más de 84 canales, y lo instala usted mismo en minutos, sin necesidad de esperar a ningún técnico. ¿Le interesa que le cuente los paquetes que tenemos?",
-            "tts_direction": "Di con tono dinámico y positivo, como compartiendo una oferta que realmente vale la pena:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_enganche_v3": {
-            "category": "pitch",
-            "text": "Mire, la razón de mi llamada es porque tenemos un plan especial de izzi tv+ desde solo 199 pesitos al mes. Lo mejor de todo es que usted mismo lo instala en su casa, es súper fácil y rápido. ¿Le gustaría saber más?",
-            "tts_direction": "Di con tono amigable y cercano, usando un lenguaje casual pero profesional:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_paquetes": {
-            "category": "pitch",
-            "text": "Tenemos tres opciones para usted. El paquete izzi tv+ Light por 199 pesos al mes con 84 canales. El Básico por 249 pesos con 200 canales más ViX Premium, Sky Sports, Fórmula 1 y LaLiga. Y el Premium por 399 pesos que además incluye Apple TV+, Max y Paramount+. Todos con contrato a 12 meses. ¿Cuál le llama más la atención?",
-            "tts_direction": "Di con tono claro y organizado, haciendo pausas entre cada paquete para que el cliente procese. Resalta los precios y beneficios con entusiasmo contenido:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_paquetes_v2": {
-            "category": "pitch",
-            "text": "Le explico nuestras opciones. El más accesible es el Light, por 199 pesos al mes con 84 canales e izzi go. Luego tenemos el Básico por 249 pesos con 200 canales, ViX Premium y deportes en vivo como Fórmula 1 y LaLiga. Y si quiere todo, el Premium por 399 pesos incluye Apple TV+, Max y Paramount+. ¿Alguno le interesa en particular?",
-            "tts_direction": "Di con tono de asesora que presenta opciones claras, pausando entre paquetes:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_perfilamiento_intro": {
-            "category": "perfilamiento",
-            "text": "¡Excelente! Para poderlo canalizar con un asesor que le dé todos los detalles y le ayude con la contratación, me permite hacerle unas preguntas rápidas.",
-            "tts_direction": "Di con tono positivo y eficiente, como preparando al cliente para un proceso rápido:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_perfilamiento_intro_v2": {
-            "category": "perfilamiento",
-            "text": "¡Qué bien! Mire, para conectarlo directamente con un asesor especializado, necesito hacerle unas preguntitas muy rápidas, no le quito más de un minuto.",
-            "tts_direction": "Di con tono ágil y amigable, minimizando el esfuerzo requerido:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_ubicacion": {
-            "category": "perfilamiento",
-            "text": "¿Me podría indicar en qué ciudad o municipio se encuentra y cuál es su código postal?",
-            "tts_direction": "Di con tono amable y profesional, como una pregunta rutinaria:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_ubicacion_v2": {
-            "category": "perfilamiento",
-            "text": "Para validar que tengamos cobertura en su zona, ¿me indica su ciudad y código postal, por favor?",
-            "tts_direction": "Di con tono servicial y directo:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_tv_actual": {
-            "category": "perfilamiento",
-            "text": "¿Actualmente cuenta con algún servicio de televisión de paga? Por ejemplo, Sky, Dish, Megacable u otro.",
-            "tts_direction": "Di con tono casual y curioso, como haciendo una pregunta de conversación:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_tv_actual_v2": {
-            "category": "perfilamiento",
-            "text": "Y dígame, ¿tiene contratado algún servicio de tele de paga actualmente? ¿Sky, Dish o algún otro?",
-            "tts_direction": "Di con tono relajado y conversacional:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_paquete_interes": {
-            "category": "perfilamiento",
-            "text": "De los paquetes que le comenté, ¿cuál le llamó más la atención? ¿El Light de 199, el Básico de 249 o el Premium de 399?",
-            "tts_direction": "Di con tono de consulta amigable, mencionando los precios con claridad:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_entrega": {
-            "category": "perfilamiento",
-            "text": "¿Preferiría recoger su equipo en una sucursal izzi o que se lo enviemos a su domicilio?",
-            "tts_direction": "Di con tono amable, ofreciendo ambas opciones con naturalidad:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_entrega_v2": {
-            "category": "perfilamiento",
-            "text": "Para la entrega de su equipo tenemos dos opciones: puede pasar a recogerlo a cualquier sucursal izzi, o si prefiere, se lo mandamos directamente a su casa. ¿Qué le conviene más?",
-            "tts_direction": "Di con tono servicial y claro:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_disponibilidad": {
-            "category": "perfilamiento",
-            "text": "Perfecto. ¿Tiene disponibilidad en este momento para que lo comunique con un asesor especializado que le ayude con la contratación?",
-            "tts_direction": "Di con tono expectante pero sin presionar:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_preguntar_disponibilidad_v2": {
-            "category": "perfilamiento",
-            "text": "Oiga, ¿ahorita puede hablar unos minutitos con un asesor que le dé todos los detalles y le ayude a contratar? Es rapidísimo.",
-            "tts_direction": "Di con tono casual y amigable, transmitiendo que será rápido:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_sin_cobertura": {
-            "category": "cierre",
-            "text": "Lamentablemente por el momento no tenemos cobertura en su zona para este servicio, pero estamos en constante expansión. Le agradezco mucho su tiempo y en cuanto lleguemos a su zona con gusto le contactamos.",
-            "tts_direction": "Di con tono empático y sinceramente apenado, pero dejando una nota positiva de esperanza:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_sin_cobertura_v2": {
-            "category": "cierre",
-            "text": "Ay, qué pena. Desafortunadamente su zona aún no tiene cobertura para izzi tv+ autoinstalación, pero estamos creciendo constantemente. Le agradezco muchísimo su interés y su tiempo.",
-            "tts_direction": "Di con tono genuinamente apenado pero cálido:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_transferencia": {
-            "category": "transferencia",
-            "text": "Perfecto. Lo voy a comunicar con un asesor especializado que le dará todos los detalles y le ayudará con la contratación. No cuelgue por favor, en un momento lo atienden. ¡Que disfrute su nuevo servicio!",
-            "tts_direction": "Di con tono positivo y emocionado, como preparando al cliente para una buena experiencia. Termina con entusiasmo:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_transferencia_v2": {
-            "category": "transferencia",
-            "text": "¡Listo! En este momento lo transfiero con un asesor que lo va a atender para completar su contratación. Por favor no cuelgue, en brevísimo lo atienden. ¡Felicidades por su elección!",
-            "tts_direction": "Di con tono ágil y celebratorio:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_transferencia_paquete": {
-            "category": "transferencia",
-            "text": "Perfecto, {nombre_cliente}. Lo voy a comunicar con un asesor especializado que le dará todos los detalles del paquete {paquete_elegido} y le ayudará con la contratación. No cuelgue por favor, en un momento lo atienden.",
-            "tts_direction": "Di con tono entusiasta y personalizado, mencionando el nombre y paquete con claridad:",
-            "variables": ["nombre_cliente", "paquete_elegido"],
-            "prerecord": false
-        },
-        "izzi_sin_ejecutivos": {
-            "category": "transferencia",
-            "text": "En este momento todos nuestros asesores están ocupados. Le vamos a devolver la llamada en máximo 30 minutos. ¿Me confirma que este es el mejor número para contactarle?",
-            "tts_direction": "Di con tono profesional y disculpándose, asegurando seguimiento rápido:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_sin_ejecutivos_v2": {
-            "category": "transferencia",
-            "text": "Discúlpeme, en este momento no tengo asesores disponibles, pero le aseguro que le regresamos la llamada en los próximos 30 minutos. ¿Es correcto este número para marcarle?",
-            "tts_direction": "Di con tono empático y comprometido con el seguimiento:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_agendar_callback": {
-            "category": "transferencia",
-            "text": "Sin problema. ¿A qué hora le quedaría bien que le marquemos para platicar con el asesor? Anoto su horario preferido.",
-            "tts_direction": "Di con tono flexible y servicial:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_cierre_sin_interes": {
-            "category": "cierre",
-            "text": "Le agradezco mucho su tiempo. Recuerde que en izzi siempre tenemos opciones para usted. Si en algún momento le interesa, puede visitarnos en izzi punto mx o llamar al 800 120 5000. ¡Que tenga excelente día!",
-            "tts_direction": "Di con tono cálido y respetuoso, sin rencor, dejando la puerta abierta:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_cierre_sin_interes_v2": {
-            "category": "cierre",
-            "text": "Entiendo perfectamente y respeto su decisión. Le agradezco mucho el tiempo que me brindó. Si cambia de opinión, nos encuentra en izzi punto mx o al 800 120 5000. ¡Que le vaya muy bien!",
-            "tts_direction": "Di con tono genuinamente agradecido y sin presionar:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_cierre_sin_interes_v3": {
-            "category": "cierre",
-            "text": "Muchas gracias por atender mi llamada. Cualquier duda que tenga sobre izzi tv+ puede consultarla en izzi punto mx o marcando al 800 120 5000. ¡Que tenga un bonito día!",
-            "tts_direction": "Di con tono alegre y cortés de despedida:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_cierre_nombre": {
-            "category": "cierre",
-            "text": "{nombre_cliente}, le agradezco mucho su tiempo. Recuerde que en izzi siempre tenemos opciones para usted. Si en algún momento le interesa, puede visitarnos en izzi punto mx o llamar al 800 120 5000. ¡Que tenga excelente día!",
-            "tts_direction": "Di con tono cálido y personalizado, pronunciando el nombre con cariño:",
+        "plata_saludo_no_titular": {
+            "category": "saludo",
+            "text": "¿Con quién tengo el gusto? Entendido. ¿Qué parentesco tiene con {nombre_cliente}? ¿En qué horario podría localizarle?",
+            "tts_direction": "Pregunta de manera cordial y atenta:",
             "variables": ["nombre_cliente"],
             "prerecord": false
         },
-        "izzi_no_es_titular": {
-            "category": "objecion",
-            "text": "Entiendo, no hay problema. ¿Me podría indicar a qué hora lo puedo encontrar para platicarle sobre esta promoción? O si gusta, ¿puedo dejarle el recado?",
-            "tts_direction": "Di con tono comprensivo y flexible:",
+        "plata_pitch_inicial": {
+            "category": "pitch",
+            "text": "¡Excelente noticia! Su perfil fue seleccionado de forma exclusiva para recibir una PlataCard preaprobada, una tarjeta de crédito sin anualidad de por vida y con la posibilidad de hasta 60 días para pagar sus compras sin intereses. ¿Le parece bien si continuamos con la solicitud?",
+            "tts_direction": "Di con entusiasmo y convicción, destacando la falta de anualidad y los 60 días de plazo:",
             "variables": [],
             "prerecord": true
         },
-        "izzi_no_es_titular_v2": {
-            "category": "objecion",
-            "text": "Ah, disculpe la molestia. ¿Sabe a qué hora podría encontrar al titular? Con gusto le volvemos a llamar.",
-            "tts_direction": "Di con tono cortés y sin insistir:",
+        "plata_objecion_cashback": {
+            "category": "objeciones",
+            "text": "Comprendo, pero ¿no le gustaría recibir hasta el 15% de cashback automático en las compras que realice? Es uno de los increíbles beneficios con los que cuenta nuestra tarjeta.",
+            "tts_direction": "Di con tono persuasivo y empático, recalcando el beneficio del cashback:",
             "variables": [],
             "prerecord": true
         },
-        "izzi_dnc": {
-            "category": "objecion",
-            "text": "Por supuesto, le ofrezco una disculpa por la molestia. Queda registrada su solicitud de no contacto. Que tenga excelente día.",
-            "tts_direction": "Di con tono respetuoso y profesional, sin insistir en absoluto:",
+        "plata_preguntar_ine_movil": {
+            "category": "validacion",
+            "text": "Excelente, para continuar con la solicitud, solo necesitamos saber: ¿cuenta con su INE físico y vigente en este momento? Y también dígame, ¿el número al que me comunico es móvil y de uso personal?",
+            "tts_direction": "Pregunta de forma clara y amable, esperando respuesta tras cada elemento:",
             "variables": [],
             "prerecord": true
         },
-        "izzi_objecion_caro": {
-            "category": "objecion",
-            "text": "Se lo pongo así: son menos de 7 pesos al día. Y a diferencia de otros servicios, no tiene costo de instalación porque usted mismo la hace en minutos. Es una excelente inversión en entretenimiento para toda la familia.",
-            "tts_direction": "Di con tono persuasivo pero no agresivo, como compartiendo un dato interesante:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_objecion_caro_v2": {
-            "category": "objecion",
-            "text": "Fíjese que con el paquete Light son menos de 7 pesitos diarios por 84 canales, y se ahorra el costo de instalación porque usted mismo conecta su equipo. ¿No le parece que vale la pena probarlo?",
-            "tts_direction": "Di con tono amigable y convincente, como haciendo una reflexión genuina:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_objecion_no_se_instalar": {
-            "category": "objecion",
-            "text": "No se preocupe, es muy sencillo. El equipo trae un instructivo paso a paso, puede usar la app de izzi que le va guiando, y si en algún momento se atora, puede llamar al 800 120 5000 y un técnico le ayuda por teléfono sin costo.",
-            "tts_direction": "Di con tono tranquilizador y seguro, desvaneciendo cualquier temor:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_objecion_no_se_instalar_v2": {
-            "category": "objecion",
-            "text": "¡Es súper fácil! Literal es conectar dos cables y activar desde la app. Y si necesita ayuda, tiene soporte gratuito al 800 120 5000. Muchos clientes nos dicen que en 10 minutitos ya estaban viendo tele.",
-            "tts_direction": "Di con tono positivo y entusiasta, dando confianza:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_objecion_ya_tiene_tv": {
-            "category": "objecion",
-            "text": "Entiendo. ¿Y cuánto paga actualmente? Porque con nuestro paquete Premium de 399 pesos ya incluye plataformas como Apple TV+, Max y Paramount+, que normalmente le costarían más de 500 pesos por separado. Un asesor podría hacerle una comparación personalizada. ¿Le interesa?",
-            "tts_direction": "Di con tono consultivo y estratégico, presentando valor real:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_objecion_no_internet": {
-            "category": "objecion",
-            "text": "Para izzi tv+ sí necesitaría una conexión a internet. Pero ¿sabe qué? También manejamos paquetes combo de internet más televisión que le podrían convenir. Si gusta, lo puedo comunicar con un asesor que le cotice las opciones completas.",
-            "tts_direction": "Di con tono informativo y ofreciendo solución alternativa:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_objecion_prefiere_tecnico": {
-            "category": "objecion",
-            "text": "Claro, también tenemos la opción de que un técnico se lo instale. Tiene un costo adicional de 500 pesos, pero si usted se anima a hacerlo solo, se ahorra ese costo y es realmente muy sencillo. ¿Qué prefiere?",
-            "tts_direction": "Di con tono neutral, ofreciendo ambas opciones sin juzgar:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_espera": {
-            "category": "transicion",
-            "text": "Permítame un momento mientras verifico la información, por favor.",
-            "tts_direction": "Di con tono profesional y breve:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_espera_v2": {
-            "category": "transicion",
-            "text": "Deme un segundito, estoy validando los datos en el sistema. No me cuelgue, por favor.",
-            "tts_direction": "Di con tono ágil y cortés:",
-            "variables": [],
-            "prerecord": true
-        },
-        "izzi_aviso_privacidad": {
+        "plata_aviso_buro": {
             "category": "legal",
-            "text": "Le informo que esta llamada es grabada con fines de calidad y sus datos serán tratados conforme a nuestro aviso de privacidad.",
-            "tts_direction": "Di con tono formal y claro, como un aviso legal profesional:",
+            "text": "Al continuar con este trámite, usted autoriza a BANCO PLATA S.A. para tratar sus datos personales de conformidad con el Aviso de Privacidad visible en platacard.mx. Para efectos del trámite, también necesitamos su autorización para realizar una consulta ante las Sociedades de Información Crediticia, es decir, el Buró. ¿Nos autoriza a BANCO PLATA S.A. para proceder?",
+            "tts_direction": "Lee con tono claro, pausado y profesional de aviso legal:",
+            "variables": [],
+            "prerecord": true
+        },
+        "plata_preguntas_credito": {
+            "category": "perfilamiento",
+            "text": "Perfecto, le hago tres preguntas rápidas sobre su historial: ¿Ha ejercido algún crédito automotriz o hipotecario en los últimos dos años? ¿Cuenta actualmente con alguna tarjeta de crédito o departamental activa? Y de ser así, ¿me podría proporcionar los últimos 4 dígitos de alguna de ellas?",
+            "tts_direction": "Di con tono de recopilación rutinaria y amigable:",
+            "variables": [],
+            "prerecord": true
+        },
+        "plata_confirmacion_datos": {
+            "category": "captura",
+            "text": "Dígame, ¿su número telefónico es {telefono}? ¿Es correcto?",
+            "tts_direction": "Di de forma clara:",
+            "variables": ["telefono"],
+            "prerecord": false
+        },
+        "plata_whatsapp_codigo": {
+            "category": "captura",
+            "text": "¡Perfecto! Ya ingresé sus datos en nuestro sistema. En este momento debe estarle llegando un mensaje de confirmación por WhatsApp con un código de 4 dígitos. ¿Me lo podría proporcionar, por favor?",
+            "tts_direction": "Di con tono positivo y servicial:",
+            "variables": [],
+            "prerecord": true
+        },
+        "plata_despedida": {
+            "category": "cierre",
+            "text": "Damos por terminada la solicitud, fue un gusto poder comunicarme con usted, le recuerdo que mi nombre es Liliana Hernández en representación de Plata Card. ¡Que pase un excelente día!",
+            "tts_direction": "Despídete con calidez y cortesía:",
+            "variables": [],
+            "prerecord": true
+        },
+        "plata_cierre_no_interes": {
+            "category": "cierre",
+            "text": "De acuerdo. De todas formas, muchas gracias por su tiempo. Recuerde que PlataCard está disponible cuando la necesite. ¡Que tenga un excelente día!",
+            "tts_direction": "Di con tono respetuoso y cortés:",
             "variables": [],
             "prerecord": true
         }

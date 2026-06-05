@@ -122,6 +122,20 @@ class VoiceAgent:
                 obtener_datos_cliente,
             ])
             logger.info("🎯 [Retención] Tools de retención registradas en el agente.")
+        elif self.campania_name == 'plata':
+            from tools.plata_tools import (
+                crm_llenado,
+                codigo_txt,
+                limpiar_senales_plata
+            )
+            extra_tools.extend([
+                crm_llenado,
+                codigo_txt,
+                self.external_pause_and_flag_exit,
+            ])
+            # Limpiar señales pendientes al inicio
+            limpiar_senales_plata()
+            logger.info("💳 [PlataCard] Tools crm_llenado, codigo_txt y external_pause_and_flag_exit registradas en el agente.")
 
         self.tools_dispatcher = ToolDispatcher(
             self.voice_cfg,
@@ -193,6 +207,82 @@ class VoiceAgent:
                 lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_hangup_timer()))
             )
         return f"OK. Estatus '{estatus}' guardado. El sistema cerrará la llamada en unos segundos de silencio."
+
+    def external_pause_and_flag_exit(
+        self,
+        cn_type: str,
+        cn_motivo: str,
+        tipificacion: str
+    ) -> dict:
+        """
+        Pausa la llamada, marca la salida e inserta los datos de la llamada en la BD CNAgenteDepuracion.
+        """
+        logger.warning(f"📞 [PlataCard] external_pause_and_flag_exit invocado: type={cn_type}, motivo={cn_motivo}, tipificacion={tipificacion}")
+        
+        # 1. Registrar actividad 'Tipificando' en BD de agentes
+        from tools.vicidial_db import actualizar_actividad, DB_CONFIG
+        try:
+            actualizar_actividad("Tipificando")
+        except Exception as ae:
+            logger.error(f"Error actualizando actividad: {ae}")
+
+        # 2. Insertar registro en CNAgenteDepuracion de forma síncrona en hilo
+        import pymysql
+        
+        # Emular el diccionario de client_context original a partir del estado actual del agente
+        registro = {
+            "NOMBRE_CLIENTE": self.client_name or "Desconocido",
+            "CUENTA": self.client_cuenta or "Sin Cuenta",
+            "NUMERO_ORDEN": "sin orden",  # PlataCard no maneja ordenes de VT
+            "FALLA_GENERAL": "0",
+            "SEGUIMIENTO": "0",
+            "Telefonos": self.client_phone or "",
+            "Tipo": "PlataCard",
+            "Direccion": "Entrega PlataCard",
+            "NOMBRE_AGENTE": self.voice_cfg.get("agent_instructions", {}).get("agent_human_name", "Liliana Hernández"),
+            "HORA_LLAMADA": datetime.now().strftime("%H:%M"),
+            "Horario": "Ventas",
+            "SALUDO": "Buen dia",
+            "status": "Pendiente",
+            "cn_type": cn_type,
+            "cn_motivo": cn_motivo,
+            "tipoficacion": tipificacion
+        }
+
+        def _insert_cn():
+            conn = pymysql.connect(**DB_CONFIG)
+            try:
+                with conn.cursor() as cursor:
+                    columnas = ", ".join(registro.keys())
+                    marcadores = ", ".join(["%s"] * len(registro))
+                    sql = f"INSERT INTO CNAgenteDepuracion ({columnas}) VALUES ({marcadores})"
+                    cursor.execute(sql, list(registro.values()))
+                conn.commit()
+                logger.info("✅ [PlataTools] Registro insertado correctamente en CNAgenteDepuracion")
+            except Exception as e:
+                logger.error(f"❌ [PlataTools] Error al insertar en CNAgenteDepuracion: {e}")
+            finally:
+                conn.close()
+
+        # Ejecutar inserción en background/hilo para no bloquear el bucle de eventos
+        if hasattr(self, 'loop') and self.loop.is_running():
+            self.loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(asyncio.to_thread(_insert_cn))
+            )
+        else:
+            _insert_cn()
+
+        # 3. Guardar estatus y programar colgado en 6 segundos para dar tiempo al usuario/Gemini
+        self.final_disposition = tipificacion
+        if self.delayed_hangup_task:
+            self.delayed_hangup_task.cancel()
+            
+        if hasattr(self, 'loop') and self.loop.is_running():
+            self.loop.call_soon_threadsafe(
+                lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_hangup_timer()))
+            )
+            
+        return {"result": "success", "message": "Registro completado e inserción a CNAgenteDepuracion iniciada. Colgando llamada en unos segundos."}
 
     async def _delayed_hangup_timer(self):
         wait_time = 5.0
@@ -690,7 +780,7 @@ class VoiceAgent:
         #     for sid, info in available.items():
         #         pregrabados_block += f"'{sid}': \"{info['text'][:50]}...\"; "
         
-        if self.campania_name in ('ventas_izzi', 'plata'):
+        if self.campania_name == 'ventas_izzi':
             cierre_rules = (
                 "\n2. CIERRE DE LLAMADA: Cuando el cliente esté calificado, interesado y confirme estar de acuerdo con ser transferido, haz lo siguiente en orden ESTRICTO:"
                 "\n   a) Llama a la herramienta 'actualizar_comentarios_cliente' con los datos perfilados (nombre_cliente, pantallas, paquete_ofrecido, cuenta, dudas_no_respondidas). Hazlo en silencio, sin decírselo al cliente."
@@ -698,6 +788,11 @@ class VoiceAgent:
                 "\n   c) Llama a la herramienta 'transfer_conference' con los parámetros: user='Virt1', password='Cyber123', ingrup='tvplus'."
                 "\n   d) Inmediatamente después, llama a 'external_status' con el valor 'TRANSvent' (o 'transInt' si el cliente tenía dudas o preguntas específicas que no supiste responder y requirió transferencia inmediata)."
                 "\n   PROHIBIDO: usar 'external_hangup' en este nodo, la transferencia se encargará del colgado."
+            )
+            voicemail_status = "NCBUZ"
+        elif self.campania_name == 'plata':
+            cierre_rules = (
+                "\n2. CIERRE DE LLAMADA: Al terminar la interacción con el cliente (ya sea por venta exitosa, rechazo, reprogramación o llamada cortada), debes despedirte formalmente y llamar a la herramienta 'external_pause_and_flag_exit' con los parámetros correspondientes (cn_type, cn_motivo, tipificacion)."
             )
             voicemail_status = "NCBUZ"
         elif self.campania_name == 'retencion':
