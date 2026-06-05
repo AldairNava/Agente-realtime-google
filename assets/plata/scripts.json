@@ -11,7 +11,7 @@
     "scripts": {
         "plata_saludo": {
             "category": "saludo",
-            "text": "Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con el señor o señorita {nombre_cliente}?",
+            "text": "Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con {nombre_cliente}?",
             "tts_direction": "Di con tono amigable y profesional, sonriendo al hablar:",
             "variables": ["nombre_cliente"],
             "prerecord": false
