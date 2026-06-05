@@ -234,8 +234,6 @@ class VoiceAgent:
             "NOMBRE_CLIENTE": self.client_name or "Desconocido",
             "CUENTA": self.client_cuenta or "Sin Cuenta",
             "NUMERO_ORDEN": "sin orden",  # PlataCard no maneja ordenes de VT
-            "FALLA_GENERAL": "0",
-            "SEGUIMIENTO": "0",
             "Telefonos": self.client_phone or "",
             "Tipo": "PlataCard",
             "Direccion": "Entrega PlataCard",
@@ -553,9 +551,9 @@ class VoiceAgent:
                     return
                 self.transfer_executed = True
                 
-                logger.info("⏱️ Retrasando ejecución de transfer_conference 6 segundos")
-                # Wait up to 6 seconds in small chunks to detect session end
-                for _ in range(12):
+                logger.info("⏱️ Retrasando ejecución de transfer_conference 7 segundos")
+                # Wait up to 7 seconds in small chunks to detect session end
+                for _ in range(14):
                     if not getattr(self, 'session_active', False):
                         logger.info("📞 Cliente colgó durante la despedida. Cortando retraso de transferencia.")
                         break
