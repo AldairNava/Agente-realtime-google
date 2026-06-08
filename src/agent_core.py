@@ -1115,13 +1115,17 @@ class VoiceAgent:
                             api_cfg = self.tools_dispatcher.api
                             # Evitar doble ejecución si la IA ya inició el proceso de colgar
                             if api_cfg and not getattr(api_cfg, 'call_hungup_sent', False) and not getattr(self, 'hangup_executed', False):
-                                fallback_status = self.final_disposition
-                                if not fallback_status:
-                                    status_opts = self.voice_cfg.get('dispositions', {})
-                                    fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
-                                logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
-                                await asyncio.to_thread(api_cfg.external_status, fallback_status)
-                                await asyncio.to_thread(api_cfg.external_hangup)
+                                if getattr(api_cfg, '_status_called', False):
+                                    logger.info(f"ℹ️ [Core] La llamada finalizó con tipificación explícita '{api_cfg._pending_status}'. Ejecutando colgado...")
+                                    await asyncio.to_thread(api_cfg.external_hangup)
+                                else:
+                                    fallback_status = self.final_disposition
+                                    if not fallback_status:
+                                        status_opts = self.voice_cfg.get('dispositions', {})
+                                        fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
+                                    logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
+                                    await asyncio.to_thread(api_cfg.external_status, fallback_status)
+                                    await asyncio.to_thread(api_cfg.external_hangup)
 
                         logger.info("🔄 [Core] Reiniciando sesión de voz para esperar la siguiente llamada...")
                 
