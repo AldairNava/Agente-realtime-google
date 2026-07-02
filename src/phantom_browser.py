@@ -21,12 +21,12 @@ logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
 
 # Mapa de campaña → valor exacto del <option> en el select de Vicidial
 CAMPAIGN_SELECT_MAP = {
-    "amex":        "3001",   # 3006 - Plata Card
-    "plata":       "3001",   # 3006 - Plata Card (misma que amex)
-    "retencion":   "3001",   # 3001 - retenciones IZZI
-    "ventas_izzi": "3001",   # 3006 - Plata Card (misma que amex)
-    "depuracion":  "3002",   # 3002 - Depuracion
-    "inbot":       "3008",   # 3008 - Campania In BOT
+    "amex":        "3006",
+    "plata":       "3006",
+    "retencion":   "3001",
+    "ventas_izzi": "TVVirt",
+    "depuracion":  "3002",
+    "inbot":       "3008",
 }
 
 class PhantomAgent:
@@ -66,68 +66,145 @@ class PhantomAgent:
 
     def _select_campaign(self):
         """Selecciona la campaña correcta en el <select> de Vicidial."""
-        campaign_label = CAMPAIGN_SELECT_MAP.get(self.campania_name)
         try:
             select_el = self.driver.find_element(By.XPATH, '//*[@id="VD_campaign"]')
             select_el.click()
             time.sleep(1)
 
-            # Intentar por texto visible del option
-            if campaign_label:
-                try:
-                    option = self.driver.find_element(
-                        By.XPATH, f'//select[@id="VD_campaign"]/option[contains(text(), "{self.campaign_id}")]')
-                    option.click()
-                    logger.info(f"👻 [Phantom] Campaña seleccionada por ID: {self.campaign_id}")
-                    return
-                except NoSuchElementException:
-                    pass
-
-            # Fallback: primera opción disponible
+            # Obtener todas las opciones disponibles
             options = self.driver.find_elements(By.XPATH, '//select[@id="VD_campaign"]/option')
-            for opt in options:
-                if self.campaign_id in opt.get_attribute("value") or self.campaign_id in opt.text:
-                    opt.click()
-                    logger.info(f"👻 [Phantom] Campaña seleccionada (fallback): {opt.text}")
-                    return
+            logger.info(f"👻 [Phantom] Opciones de campaña encontradas: {[opt.text for opt in options]}")
 
-            # Último fallback: segunda opción
-            if len(options) > 1:
-                options[1].click()
-                logger.warning(f"👻 [Phantom] Campaña seleccionada por posición (opción 2): {options[1].text}")
+            if not options:
+                logger.warning("👻 [Phantom] No se encontraron opciones en el select de campañas.")
+                return
+
+            # 1. Buscar si hay una opción que ya venga pre-seleccionada (designada) por el servidor (que no sea el placeholder vacío)
+            designated_option = None
+            for opt in options:
+                val = (opt.get_attribute("value") or "").strip()
+                if (opt.is_selected() or opt.get_attribute("selected") is not None) and val != "":
+                    designated_option = opt
+                    break
+
+            if designated_option:
+                val = (designated_option.get_attribute("value") or "").strip()
+                designated_option.click()
+                logger.info(f"👻 [Phantom] Campaña seleccionada (respetando designada por el servidor): {designated_option.text} (value={val})")
+                return
+
+            # 2. Si no hay pre-seleccionada, buscar una que coincida con self.campaign_id (ej. "pcardVir", "3006")
+            if self.campaign_id:
+                target_campaign = str(self.campaign_id).strip().lower()
+                for opt in options:
+                    val = (opt.get_attribute("value") or "").strip().lower()
+                    if val == target_campaign:
+                        opt.click()
+                        logger.info(f"👻 [Phantom] Campaña seleccionada (coincidencia con campaign_id): {opt.text} (value={opt.get_attribute('value')})")
+                        return
+
+            # 3. Si no coincide, seleccionar la primera opción válida (con valor no vacío)
+            selected_opt = None
+            for opt in options:
+                val = (opt.get_attribute("value") or "").strip()
+                if val:
+                    selected_opt = opt
+                    break
+
+            if selected_opt:
+                selected_opt.click()
+                logger.info(f"👻 [Phantom] Campaña seleccionada (primera opción válida disponible): {selected_opt.text} (value={selected_opt.get_attribute('value')})")
+            else:
+                # Fallback extremo por si acaso
+                first_opt = options[0]
+                first_opt.click()
+                logger.info(f"👻 [Phantom] Campaña seleccionada (primera opción por fallback extremo): {first_opt.text} (value={first_opt.get_attribute('value')})")
 
         except Exception as e:
             logger.error(f"👻 [Phantom] Error seleccionando campaña: {e}")
 
     def _close_popup(self):
-        """Cierra el popup de sesión duplicada si aparece."""
-        try:
-            ok = self.driver.find_element(
-                By.XPATH, '//*[@id="DeactivateDOlDSessioNSpan"]/table/tbody/tr/td/font/a')
-            ok.click()
-            logger.info("👻 [Phantom] Popup de sesión duplicada cerrado.")
-            time.sleep(2)
-        except Exception:
-            pass
+        """Cierra el popup de sesión duplicada si aparece, intentándolo repetidamente."""
+        logger.info("👻 [Phantom] Buscando popup de sesión duplicada...")
+        for i in range(10):
+            try:
+                # 1. Intentar buscar por ID y luego hacer click en enlace interno
+                try:
+                    span = self.driver.find_element(By.ID, "DeactivateDOlDSessioNSpan")
+                    if span.is_displayed():
+                        links = span.find_elements(By.TAG_NAME, "a")
+                        for link in links:
+                            if link.is_displayed():
+                                link.click()
+                                logger.info("👻 [Phantom] Popup de sesión duplicada cerrado haciendo clic en enlace interno.")
+                                time.sleep(2)
+                                return True
+                except Exception:
+                    pass
+
+                # 2. Intentar XPath exacto
+                ok = self.driver.find_element(
+                    By.XPATH, '//*[@id="DeactivateDOlDSessioNSpan"]/table/tbody/tr/td/font/a')
+                if ok.is_displayed():
+                    ok.click()
+                    logger.info("👻 [Phantom] Popup de sesión duplicada cerrado por XPATH.")
+                    time.sleep(2)
+                    return True
+            except Exception:
+                pass
+            time.sleep(1)
+        logger.info("👻 [Phantom] No se detectó popup de sesión duplicada activo.")
+        return False
 
     def _click_resume(self):
         """Pone el agente en estado DISPONIBLE/RESUME."""
         selectors = [
             '//*[@id="DiaLControl"]/a/img',          # Botón imagen de marcar/disponible
+            "//a[contains(@onclick, 'AutoDial_ReSume_PauSe')]",
             "//a[contains(@onclick, 'ReSume_PauSe')]",
+            "//img[@alt='You are paused']",
+            "//img[contains(@src, 'vdc_LB_paused.gif')]",
             "//input[@id='DialNextButton']",
             "//*[contains(text(), 'RESUME')]",
             "//*[contains(text(), 'READY')]",
         ]
+        
+        # 1. Intentar hacer clic en los elementos visuales
         for xpath in selectors:
             try:
                 btn = self.driver.find_element(By.XPATH, xpath)
                 if btn.is_displayed():
+                    # Intentar clic estándar
+                    try:
+                        btn.click()
+                        logger.info(f"👻 [Phantom] ✅ Estado puesto en DISPONIBLE haciendo clic en {xpath}.")
+                        return True
+                    except Exception:
+                        pass
+                    # Intentar clic por JS
                     self.driver.execute_script("arguments[0].click();", btn)
-                    logger.info("👻 [Phantom] ✅ Estado puesto en DISPONIBLE.")
+                    logger.info(f"👻 [Phantom] ✅ Estado puesto en DISPONIBLE haciendo clic por JS en {xpath}.")
                     return True
             except Exception:
                 continue
+
+        # 2. Fallback: Ejecutar la función JS directamente
+        try:
+            logger.info("👻 [Phantom] Intentando ejecutar AutoDial_ReSume_PauSe directamente vía JS...")
+            self.driver.execute_script("AutoDial_ReSume_PauSe('VDADready','','','','','','','YES');")
+            logger.info("👻 [Phantom] ✅ Estado puesto en DISPONIBLE ejecutando AutoDial_ReSume_PauSe vía JS.")
+            return True
+        except Exception as js_err:
+            logger.debug(f"AutoDial_ReSume_PauSe no disponible: {js_err}")
+
+        try:
+            logger.info("👻 [Phantom] Intentando ejecutar ReSume_PauSe directamente vía JS...")
+            self.driver.execute_script("ReSume_PauSe('VDADready','','','','','','','YES');")
+            logger.info("👻 [Phantom] ✅ Estado puesto en DISPONIBLE ejecutando ReSume_PauSe vía JS.")
+            return True
+        except Exception as js_err:
+            logger.debug(f"ReSume_PauSe no disponible: {js_err}")
+
         logger.warning("👻 [Phantom] No se encontró botón RESUME/DISPONIBLE.")
         return False
 
@@ -179,9 +256,13 @@ class PhantomAgent:
         # --- Verificar si Vicidial muestra "No one is in your session" ---
         # Esto ocurre cuando el softphone (pyVoIP) no contestó a tiempo la llamada del agente.
         # En ese caso hacemos clic en "Call Agent Again" hasta que la sesión se establezca.
-        for intento in range(5):
+        for intento in range(8):
             try:
-                page_text = self.driver.find_element(By.TAG_NAME, 'body').text
+                page_text = (self.driver.find_element(By.TAG_NAME, 'body').text or "").strip()
+                if not page_text:
+                    time.sleep(1)
+                    continue
+                    
                 if 'No one is in your session' in page_text or 'Call Agent Again' in page_text:
                     logger.warning(f"👻 [Phantom] Vicidial dice 'No one in session' (intento {intento+1}). Reintentando...")
                     try:
@@ -190,22 +271,47 @@ class PhantomAgent:
                         logger.info("👻 [Phantom] Clic en 'Call Agent Again'.")
                         time.sleep(8)  # Esperar que Vicidial reintente llamar al softphone
                     except NoSuchElementException:
-                        # Buscar por texto parcial
                         try:
                             btn = self.driver.find_element(By.PARTIAL_LINK_TEXT, 'Call Agent')
                             btn.click()
                             time.sleep(8)
                         except Exception:
-                            break
+                            time.sleep(2)
                 else:
-                    break  # Ya no está en la página de error
-            except Exception:
-                break
+                    # Si no está en error y ya vemos indicios del panel principal (como las pestañas)
+                    if self.driver.find_elements(By.XPATH, '//*[@id="Tabs"]') or self.driver.find_elements(By.XPATH, "//img[@alt='MAIN']"):
+                        logger.info("👻 [Phantom] Interfaz principal de agente detectada exitosamente.")
+                        break
+                    time.sleep(1)
+            except Exception as e:
+                # Si hay un error temporal de carga, esperar y reintentar en vez de romper el ciclo
+                logger.debug(f"👻 [Phantom] Esperando carga de página en check de sesión ({e})...")
+                time.sleep(1)
 
         # --- Poner en DISPONIBLE ---
-        self._click_resume()
+        logger.info("👻 [Phantom] Esperando a que la interfaz esté lista para ponerse en DISPONIBLE...")
+        success = False
+        for intento in range(6):
+            if self._click_resume():
+                success = True
+                break
+            logger.info(f"👻 [Phantom] Reintentando poner en DISPONIBLE en 3 segundos (intento {intento+2}/6)...")
+            time.sleep(3)
+        
+        if not success:
+            logger.warning("👻 [Phantom] No se pudo poner al agente en DISPONIBLE tras varios intentos.")
+            
         time.sleep(2)
-        self.go_to_main_tab()
+        
+        # --- Regresar a la pestaña MAIN ---
+        success_tab = False
+        for intento in range(4):
+            if self.go_to_main_tab():
+                success_tab = True
+                break
+            time.sleep(2)
+        if not success_tab:
+            logger.warning("👻 [Phantom] No se pudo cambiar a la pestaña MAIN.")
 
     # ------------------------------------------------------------------
     # Hilo principal del navegador
@@ -324,6 +430,107 @@ class PhantomAgent:
             logger.warning("👻 [Phantom] Asumiendo fin de sesión por error irrecuperable del browser.")
             self._running = False
             return True
+
+    def is_in_call(self) -> bool:
+        """Verifica si el agente está en una llamada activa basándose en la imagen 'livecall' (ON/OFF)."""
+        if not self._running or not self.driver:
+            return False
+
+        if not self._is_browser_alive():
+            return False
+
+        def check_livecall_img(d):
+            try:
+                # Buscar el elemento de imagen por su atributo name="livecall"
+                img = d.find_element(By.NAME, "livecall")
+                src = img.get_attribute("src") or ""
+                if "live_call_ON" in src:
+                    return True
+                elif "live_call_OFF" in src:
+                    return False
+            except Exception:
+                pass
+            return None
+
+        try:
+            # 1. Intentar buscar en el DOM principal
+            res = check_livecall_img(self.driver)
+            if res is not None:
+                return res
+
+            # 2. Buscar dentro de los iframes si no se encontró en el DOM principal
+            iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
+            for iframe in iframes:
+                try:
+                    self.driver.switch_to.frame(iframe)
+                    res = check_livecall_img(self.driver)
+                    self.driver.switch_to.default_content()
+                    if res is not None:
+                        return res
+                except Exception:
+                    try:
+                        self.driver.switch_to.default_content()
+                    except Exception:
+                        pass
+
+            return False
+        except Exception as e:
+            logger.warning(f"👻 [Phantom] Error comprobando llamada activa con live_call img: {e}")
+            return False
+
+    def get_lead_id_fast(self) -> str:
+        """Obtiene de forma ultra-rápida el lead_id de la interfaz usando JS."""
+        if not self._running or not self.driver:
+            return ""
+        try:
+            return str(self.driver.execute_script("return document.getElementById('lead_id') ? document.getElementById('lead_id').value : '';")).strip()
+        except Exception:
+            return ""
+
+    def is_on_dispo_screen(self) -> bool:
+        """Retorna True si el navegador está en la pantalla de selección de disposición."""
+        if not self._running or not self.driver:
+            return False
+        
+        def check_driver(d):
+            try:
+                el = d.find_element(By.ID, "DispoSelectForm")
+                if el.is_displayed():
+                    return True
+            except Exception:
+                try:
+                    el = d.find_element(By.NAME, "DispoSelectForm")
+                    if el.is_displayed():
+                        return True
+                except Exception:
+                    pass
+            return False
+
+        try:
+            if check_driver(self.driver):
+                return True
+            
+            # Buscar en iframes
+            iframes = self.driver.find_elements(By.TAG_NAME, "iframe")
+            for iframe in iframes:
+                try:
+                    self.driver.switch_to.frame(iframe)
+                    found = check_driver(self.driver)
+                    self.driver.switch_to.default_content()
+                    if found:
+                        return True
+                except Exception:
+                    try:
+                        self.driver.switch_to.default_content()
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"👻 [Phantom] Error comprobando dispo en navegador: {e}")
+            try:
+                self.driver.switch_to.default_content()
+            except Exception:
+                pass
+        return False
 
     def go_to_script_tab(self) -> bool:
         """Hace clic en la pestaña SCRIPT del panel de agente."""
@@ -568,6 +775,35 @@ class PhantomAgent:
         except Exception as e:
             logger.error(f"👻 [Phantom] Error al ejecutar PauseCodeSelect_submit vía JS: {e}")
             return False
+    def logout_and_stop(self):
+        """Intenta hacer un logout limpio de Vicidial y luego apaga el navegador."""
+        if not self._running or not self.driver:
+            return
+        try:
+            logger.info("👻 [Phantom] Intentando hacer logout limpio de Vicidial...")
+            # Intentar hacer clic en el enlace/botón de LOGOUT
+            # En Vicidial, suele ser un link que contiene "LOGOUT" o tiene una función "LogOuT"
+            selectors = [
+                "//a[contains(@href, 'LogOuT')]",
+                "//a[contains(@onclick, 'LogOuT')]",
+                "//a[contains(@onclick, 'normal_logout')]",
+                "//*[contains(text(), 'LOGOUT')]",
+                "//*[contains(text(), 'Log Out')]"
+            ]
+            for selector in selectors:
+                try:
+                    btn = self.driver.find_element(By.XPATH, selector)
+                    if btn.is_displayed():
+                        btn.click()
+                        logger.info(f"👻 [Phantom] ✅ Clic en botón logout de Vicidial ({selector}).")
+                        time.sleep(3)
+                        break
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"👻 [Phantom] Error durante el proceso de logout: {e}")
+        finally:
+            self.stop()
 
     # ------------------------------------------------------------------
     # API pública
