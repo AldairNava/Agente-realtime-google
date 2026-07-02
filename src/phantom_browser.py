@@ -775,6 +775,67 @@ class PhantomAgent:
         except Exception as e:
             logger.error(f"👻 [Phantom] Error al ejecutar PauseCodeSelect_submit vía JS: {e}")
             return False
+
+    def hangup_call_browser(self) -> bool:
+        """Intenta colgar la llamada activa simulando el clic o ejecutando la función JS en el navegador."""
+        if not self._running or not self.driver:
+            logger.warning("👻 [Phantom] No se puede colgar la llamada: navegador inactivo.")
+            return False
+        
+        js_code = """
+        try {
+            if (typeof window.main_hangup_link_clicked === 'function') {
+                window.main_hangup_link_clicked();
+                return 'SUCCESS: main_hangup_link_clicked';
+            }
+            if (typeof window.ctHangUp === 'function') {
+                window.ctHangUp();
+                return 'SUCCESS: ctHangUp';
+            }
+            var el = document.getElementById('HeaderHangupLink') || 
+                     document.getElementById('HangupLink') || 
+                     document.getElementById('Hangup') ||
+                     document.querySelector('a[href*="hangup"]') ||
+                     document.querySelector('a[onclick*="hangup"]');
+            if (el) {
+                el.click();
+                return 'SUCCESS: Element click';
+            }
+            // Buscar en iframes
+            var iframes = document.getElementsByTagName('iframe');
+            for (var i = 0; i < iframes.length; i++) {
+                try {
+                    var win = iframes[i].contentWindow;
+                    var doc = iframes[i].contentDocument || win.document;
+                    if (typeof win.main_hangup_link_clicked === 'function') {
+                        win.main_hangup_link_clicked();
+                        return 'SUCCESS: main_hangup_link_clicked in iframe';
+                    }
+                    var ifEl = doc.getElementById('HeaderHangupLink') || 
+                               doc.getElementById('HangupLink') || 
+                               doc.getElementById('Hangup') ||
+                               doc.querySelector('a[href*="hangup"]') ||
+                               doc.querySelector('a[onclick*="hangup"]');
+                    if (ifEl) {
+                        ifEl.click();
+                        return 'SUCCESS: Element click in iframe';
+                    }
+                } catch(e) {}
+            }
+            return 'ERROR: No hangup function or element found';
+        } catch(err) {
+            return 'ERROR: ' + err.message;
+        }
+        """
+        try:
+            logger.info("🖥️ [Phantom] Intentando colgar llamada a través del navegador...")
+            res = self.driver.execute_script(js_code)
+            logger.info(f"VICIDIAL JS [hangup_call_browser]: {res}")
+            return "SUCCESS" in str(res)
+        except Exception as e:
+            logger.error(f"Error al colgar llamada en el navegador: {e}")
+            return False
+
     def logout_and_stop(self):
         """Intenta hacer un logout limpio de Vicidial y luego apaga el navegador."""
         if not self._running or not self.driver:

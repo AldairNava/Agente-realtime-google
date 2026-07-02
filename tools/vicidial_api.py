@@ -97,6 +97,13 @@ class VicidialAPI:
         logger.info("🛑 [VicidialAPI] Ejecutando colgado de canal (external_hangup)...")
         res_hangup = self._call_api("external_hangup", {"value": "1"})
         
+        # 1.1 Ejecutar fallback directo en el navegador si está disponible para asegurar el colgado físico
+        if getattr(self, 'phantom', None):
+            try:
+                self.phantom.hangup_call_browser()
+            except Exception as pe:
+                logger.error(f"Error en fallback de colgado en navegador: {pe}")
+        
         # 2. Esperar obligatoriamente 3 segundos a que cargue la pantalla de disposición de Vicidial
         import time
         logger.info("⏳ [VicidialAPI] Esperando 3 segundos en pantalla de disposición antes de tipificar...")

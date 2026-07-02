@@ -239,7 +239,13 @@ class VoiceAgent:
         tipificacion: str
     ) -> dict:
         """
-        Pausa la llamada, marca la salida e inserta los datos de la llamada en la BD CNAgenteDepuracion.
+        Pausa la llamada en el dialer, marca la salida en el sistema e inserta los datos de contacto y tipificación en la base de datos de agentes.
+        Esta herramienta debe ejecutarse obligatoriamente para clasificar y colgar la llamada.
+
+        Args:
+            cn_type: Código de tipo de contacto. Debe ser '1' para clientes regulares (que contestan, rechazan, etc.) o '2' para otros casos (cliente hostil, buzón de voz, reprogramaciones).
+            cn_motivo: El motivo de finalización de la llamada. Valores válidos: 'NUMERO EQUIVOCADO', 'Cliente Reprograma', 'CLIENTE HOSTIL', 'CLIENTE RECHAZA', 'VENTA EXITOSA', 'SIN CONTACTO'.
+            tipificacion: El código de tipificación oficial de la llamada correspondiente al Catálogo de Tipificaciones Obligatorias. Ejemplos: 'SCNUEQ', 'SCMADI', 'SCCLGR', 'SCNOI', 'SCVEN', 'NCBUZ', 'SCCCU'.
         """
         logger.warning(f"📞 [PlataCard] external_pause_and_flag_exit invocado: type={cn_type}, motivo={cn_motivo}, tipificacion={tipificacion}")
         
@@ -298,8 +304,6 @@ class VoiceAgent:
         # Esperar a que termine de hablar (máximo 15 segundos)
         logger.info("⏱️ [Cierre] Esperando a que termine el audio antes de colgar...")
         for _ in range(30):
-            if not self.session_active:
-                break
             if not getattr(self, '_ai_playback_active', False) and self.audio_out_queue.empty():
                 break
             await asyncio.sleep(0.5)
@@ -307,10 +311,13 @@ class VoiceAgent:
         wait_time = 4.0 if getattr(self, 'transfer_executed', False) or self.campania_name == 'plata' else 2.0
         logger.info(f"⏳ [Cierre] Audio terminado. Esperando margen de seguridad de {wait_time}s...")
         await asyncio.sleep(wait_time)
-        if self.session_active and self.final_disposition:
+        if self.final_disposition:
             logger.warning(f"🛑 [Cierre] Enviando estatus: {self.final_disposition}")
-            await asyncio.to_thread(self.tools_dispatcher.api.external_status, self.final_disposition)
-            await asyncio.to_thread(self.tools_dispatcher.api.external_hangup)
+            if self.execution_mode in ('produccion', 'pruebas'):
+                await asyncio.to_thread(self.tools_dispatcher.api.external_status, self.final_disposition)
+                await asyncio.to_thread(self.tools_dispatcher.api.external_hangup)
+            else:
+                logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
             self.session_active = False
 
     async def _hangup_watchdog(self):
@@ -674,8 +681,8 @@ class VoiceAgent:
                     
                     no_resp_status = self.voice_cfg.get('dispositions', {}).get('no_response', 'SINRSPT')
                     self.final_disposition = no_resp_status
-                    api_cfg = self.tools_dispatcher.api
-                    if api_cfg:
+                    if self.execution_mode in ('produccion', 'pruebas'):
+                        api_cfg = self.tools_dispatcher.api
                         logger.warning(f"⏱️ [Watchdog Silencio] Ejecutando colgado y tipificando como {no_resp_status}...")
                         try:
                             await asyncio.to_thread(api_cfg.external_status, no_resp_status)
@@ -683,7 +690,7 @@ class VoiceAgent:
                         except Exception as he:
                             logger.error(f"Error colgando llamada por silencio: {he}")
                     else:
-                        logger.warning("⏱️ [Watchdog Silencio] Modo local/sin API. Colgando localmente...")
+                        logger.warning("⏱️ [Watchdog Silencio] Modo local. Colgando localmente...")
                     
                     if hasattr(self, 'call_transcript'):
                         self.call_transcript.append("[Sistema] Colgado automático por silencio (SINRSPT).")
@@ -766,7 +773,7 @@ class VoiceAgent:
             voicemail_status = "NCBUZ"
         elif self.campania_name == 'plata':
             cierre_rules = (
-                "\n2. CIERRE DE LLAMADA: Al terminar la interacción con el cliente (ya sea por venta exitosa, rechazo, reprogramación o llamada cortada), debes despedirte formalmente y llamar a la herramienta 'external_pause_and_flag_exit' con los parámetros correspondientes (cn_type, cn_motivo, tipificacion)."
+                "\n2. CIERRE DE LLAMADA: Al terminar la interacción con el cliente (ya sea por venta exitosa, rechazo, reprogramación o llamada cortada), debes despedirte formalmente y, en esa misma respuesta (en el mismo turno), llamar a la herramienta 'external_pause_and_flag_exit' con los parámetros correspondientes (cn_type, cn_motivo, tipificacion). NUNCA debes mencionarle al cliente que vas a colgar la llamada ni que vas a tipificar o clasificar la llamada. Debe ser un proceso totalmente silencioso e invisible para el cliente. Simplemente di la frase de despedida correspondiente del catálogo y, en el mismo turno, ejecuta la herramienta."
             )
             voicemail_status = "NCBUZ"
         elif self.campania_name == 'retencion':
