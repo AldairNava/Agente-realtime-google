@@ -95,21 +95,10 @@
         },
         "plata_objecion_no_tengo_tiempo": {
             "category": "objeciones",
-            "text": "{nombre_cliente}, entiendo que tu tiempo es muy valioso, por eso nuestro proceso de solicitud es tan sencillo; llenar el formulario tomará sólo 3 minutos.",
-            "tts_direction": "Di de forma muy empática y cordial:",
-            "variables": [
-                "nombre_cliente"
-            ],
-            "prerecord": false
-        },
-        "plata_objecion_no_tengo_tiempo_explicado": {
-            "category": "objeciones",
-            "text": "{nombre_cliente}, entiendo, pero ya está por concluir con su aplicación y, como sabe que su tiempo es valioso, no tomará más que 3 minutos en concluir el registro.",
-            "tts_direction": "Di de forma muy empática, persuasiva y servicial:",
-            "variables": [
-                "nombre_cliente"
-            ],
-            "prerecord": false
+            "text": "No se preocupe, comprendo perfectamente. Le comento que no le tomará más de 5 minutos en concluir su registro y es muy rápido. ¿Le parece bien si le damos una oportunidad y continuamos?",
+            "tts_direction": "Di con tono amable, empático y tranquilizador:",
+            "variables": [],
+            "prerecord": true
         },
         "plata_objecion_interes": {
             "category": "objeciones",

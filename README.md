@@ -78,10 +78,10 @@ Configurado para indagar motivos, ofrecer beneficios escalonados y generar folio
 
 | Entorno | Voz | Comando |
 | :--- | :--- | :--- |
-| **Local** | Híbrido (IA + Pregrabados) ⭐ | `python main.py --campania <nombre>` |
-| **Local** | Live (100% IA) | `python main.py --campania <nombre> --voice live` |
-| **Producción Vicidial** | Híbrido (IA + Pregrabados) ⭐ | `python main.py --campania <nombre> --mode produccion` |
-| **Producción Vicidial** | Live (100% IA) | `python main.py --campania <nombre> --mode produccion --voice live` |
+| **Local** (Micrófono) | Live (100% IA) ⭐ | `py -3.12 main.py --campania <nombre> --user <usuario>` |
+| **Local** (Micrófono) | Híbrido | `py -3.12 main.py --campania <nombre> --user <usuario> --voice hibrido` |
+| **Producción** (Zoiper) | Live (100% IA) ⭐ | `py -3.12 main.py --campania <nombre> --user <usuario> --mode produccion` |
+| **Producción** (Zoiper) | Híbrido | `py -3.12 main.py --campania <nombre> --user <usuario> --mode produccion --voice hibrido` |
 
 ### Grabación / Actualización de Audios
 

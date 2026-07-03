@@ -21,7 +21,9 @@ vicidial_agent_events.log
 
 # Audios e Imágenes (Pruebas y Grabaciones)
 recordings/
-audio_grabado.wav
+*.wav
+*.mp3
+*.m4a
 *.png
 
 # Artefactos del agente AI

@@ -48,7 +48,7 @@ try:
         
         # Escala visual
         vol = min(int(rms / 100), 40)
-        bar = "█" * vol + "-" * (40 - vol)
+        bar = "#" * vol + "-" * (40 - vol)
         
         # Muestra si detectó Voz o Silencio en base al umbral empírico de RMS
         estado = "VOZ HUMANA DETECTADA" if rms > 150 else "Silencio/Ruido   "

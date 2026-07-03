@@ -47,19 +47,130 @@ async def grabar_un_audio(api_key, audio_interface, campania, txt_nombre):
         await asyncio.sleep(0.3)
 
 
+def obtener_credenciales_agente(args):
+    """
+    Determina el usuario del agente, su alias (extensión SIP) y el host activo (servidor)
+    basado en los argumentos de la terminal (usuario y/o servidor) sin consultar base de datos.
+    """
+    server_num = args.server
+    user = args.user
+    
+    if user:
+        user_lower = user.lower().replace(" ", "")
+        if "plata" in user_lower or "virt" in user_lower or "vit" in user_lower or "amex" in user_lower:
+            server_num = "2"
+        elif "dep" in user_lower:
+            server_num = "1"
+        elif user_lower in ["3050", "3051", "3052", "3053", "3054", "3055", "7001", "7002"]:
+            server_num = "2"
+        elif user_lower.isdigit() and (7900 <= int(user_lower) <= 7929 or int(user_lower) == 7931):
+            server_num = "1"
+
+    # Servidor activo
+    active_host = "192.168.50.66" if server_num == "2" else "192.168.50.121"
+
+    if not user:
+        if server_num == "2":
+            user = "Virt1"
+        else:
+            user = "dep1"
+
+    user_lower = user.lower().replace(" ", "")
+    agent_user = user_lower
+    agent_alias = None
+
+    # Mapeos de Server 2
+    plata_map = {
+        "plata3": "3050", "plata4": "3051", "plata5": "3052",
+        "plata6": "3053", "plata7": "3054", "plata8": "3055",
+        "3050": "3050", "3051": "3051", "3052": "3052",
+        "3053": "3053", "3054": "3054", "3055": "3055"
+    }
+    virt_map = {
+        "virt1": "7001", "virt2": "7002",
+        "vit1": "7001", "vit2": "7002",
+        "7001": "7001", "7002": "7002"
+    }
+    amex_map = {
+        "amex1": "4001", "amex2": "4002", "amex3": "4003",
+        "4001": "4001", "4002": "4002", "4003": "4003"
+    }
+
+    if user_lower in plata_map:
+        agent_alias = plata_map[user_lower]
+        if user_lower.isdigit():
+            idx = int(user_lower) - 3050 + 3
+            agent_user = f"Plata{idx}"
+        else:
+            agent_user = user_lower.capitalize()
+    elif user_lower in virt_map:
+        agent_alias = virt_map[user_lower]
+        if user_lower.isdigit():
+            idx = int(user_lower) - 7000
+            agent_user = f"Virt{idx}"
+        else:
+            agent_user = user_lower.capitalize().replace("Vit", "Virt")
+    elif user_lower in amex_map:
+        agent_alias = amex_map[user_lower]
+        if user_lower.isdigit():
+            idx = int(user_lower) - 4000
+            agent_user = f"Amex{idx}"
+        else:
+            agent_user = user_lower.capitalize()
+    # Mapeos de Server 1 (depX)
+    elif "dep" in user_lower:
+        agent_user = user_lower.lower()
+        try:
+            num_str = "".join([c for c in user_lower if c.isdigit()])
+            if num_str:
+                num = int(num_str)
+                if 1 <= num <= 30:
+                    agent_alias = str(7900 + num - 1)
+                elif num == 31:
+                    agent_alias = "7931"
+            if not agent_alias:
+                agent_alias = "7900"
+        except Exception:
+            agent_alias = "7900"
+    elif user_lower.isdigit():
+        val = int(user_lower)
+        if 7900 <= val <= 7929:
+            agent_alias = user_lower
+            agent_user = f"dep{val - 7900 + 1}"
+        elif val == 7931:
+            agent_alias = "7931"
+            agent_user = "dep31"
+
+    # Fallbacks finales
+    if not agent_alias:
+        if server_num == "2":
+            agent_user = "Virt1"
+            agent_alias = "7001"
+        else:
+            agent_user = "dep1"
+            agent_alias = "7900"
+
+    logger.info(f"[MemoryResolver] Resolved user={agent_user}, extension={agent_alias}, host={active_host}")
+    return agent_user, agent_alias, active_host
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Don Pelayo - Agente de Voz Camaleónico Multi-Campaña")
 
     # Argumentos Principales
     parser.add_argument("--campania", type=str, required=True,
                         help="Nombre de la campaña (ej: amex, retencion, plata)")
+    parser.add_argument("--user", type=str,
+                        help="Usuario o agente con el que se logueará (ej: Plata3, Plata4, Virt1)")
+    parser.add_argument("--vici-campania", type=str,
+                        help="ID de la campaña en Vicidial (ej: pcardVir, TVVirt) si es distinta a la del agente")
 
-    parser.add_argument("--mode", choices=["local", "produccion", "pruebas"], default="local",
-                        help="Entorno: 'local' (micro), 'produccion' (pyVoIP+Vicidial), 'pruebas' (Zoiper+Vicidial, sin SIP interno)")
-    parser.add_argument("--server", choices=["1", "2"], default="2",
+    parser.add_argument("--mode", choices=["local", "produccion"], default="local",
+                        help="Entorno: 'local' (micro directo, sin Vici/Zoiper), 'produccion' (Zoiper+Vicidial/Phantom)")
+    parser.add_argument("--server", choices=["1", "2"], default="1",
                         help="Servidor Vicidial: '1' (192.168.50.121), '2' (192.168.50.66)")
 
-    parser.add_argument("--voice", choices=["live", "hibrido", "grabacion"], default="hibrido",
+    parser.add_argument("--voice", choices=["live", "hibrido", "grabacion"], default="live",
                         help="Modalidad de voz: 'live' (solo IA), 'hibrido' (IA + Pregrabados) o 'grabacion'")
 
     # Argumentos para Modo Grabación
@@ -73,6 +184,8 @@ async def main():
                         help="[Solo --voice grabacion] Nombre del archivo WAV de salida (solo con --frase).")
 
     args = parser.parse_args()
+
+    rpa_processes = []
 
     # Validación Modo Grabación
     if args.voice == "grabacion":
@@ -154,91 +267,24 @@ async def main():
     logger.info(f" VOZ    : {args.voice.upper()} ")
     logger.info("=============================================")
 
+    # Iniciar ruido de fondo de ffplay (volumen 3%, loop infinito)
+    try:
+        from ruido import iniciar_ruido_background
+        ruido_proc = iniciar_ruido_background()
+        rpa_processes.append(ruido_proc)
+        logger.info("✅ [Ruido de Fondo] ffplay iniciado en segundo plano (Volumen: 3%).")
+    except Exception as e:
+        logger.warning(f"⚠️ [Ruido de Fondo] No se pudo iniciar el ruido de fondo: {e}")
+
     audio_interface = None
+    
+    # === [ANTIGUO MODO PRODUCCION COMENTADO (pyVoIP)] ===
+    # if args.mode == "produccion_antiguo":
+    #     ... (Código de AsteriskManager y SipAudioInterface) ...
+
     if args.mode == "produccion":
-        import json
-        import socket
-        import pymysql
-        from pymysql.cursors import DictCursor
-
-        config_path = os.path.join(os.path.dirname(__file__), 'config', 'voice_config.json')
-        with open(config_path, 'r', encoding='utf-8') as f:
-            cfg = json.load(f)
-
-        server_map = {
-            "1": "192.168.50.121",
-            "2": "192.168.50.66"
-        }
-        active_host = server_map.get(args.server, "192.168.50.66")
-
-        # Actualizar host de DB general
-        import tools.vicidial_db as vdb
-        vdb.DB_CONFIG["host"] = active_host
-
-        # --- Carga dinámica de credenciales por IP del equipo ---
-        ip_local = socket.gethostbyname(socket.gethostname())
-        agent_user = None
-        agent_alias = None
-        try:
-            conn = pymysql.connect(
-                host=active_host,
-                user='lhernandez',
-                password='lhernandez10',
-                database='asterisk',
-                cursorclass=DictCursor,
-                connect_timeout=5,
-                charset='utf8mb4'
-            )
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT nombre, alias FROM agentesDepuracion WHERE ip = %s LIMIT 1",
-                    (ip_local,)
-                )
-                row = cur.fetchone()
-            conn.close()
-            if row:
-                agent_user = row['nombre']
-                agent_alias = row['alias']
-                logger.info(f"Credenciales dinamicas: usuario={agent_user}, extension={agent_alias} (IP: {ip_local})")
-            else:
-                logger.warning(f"No se encontro registro en agentesDepuracion para IP {ip_local}. Usando voz_config defaults")
-        except Exception as e:
-            logger.error(f"Error leyendo BD de agentes: {e}")
-
-        # --- Audio: pyVoIP como softphone automático (sin Zoiper) ---
-        # pyVoIP se registra como la extensión del agente y auto-contesta las llamadas de Vicidial
-        sip_extension = agent_alias or os.getenv('SIP_EXTENSION', '7929')
-        sip_password = 'Cyber123'
-        audio_interface = SipAudioInterface(
-            server=os.getenv('SIP_SERVER_IP', active_host),
-            port=int(os.getenv('SIP_PORT', 5060)),
-            user=sip_extension,
-            password=sip_password
-        )
-        logger.info(f"Audio en modo PRODUCCION: SipAudioInterface como {sip_extension}@{active_host}")
-
-        # Inyectar credenciales dinámicas en el config de la campaña (en memoria, sin archivos tmp)
-        if agent_user and agent_alias:
-            sip_password = 'Cyber123'
-            campania_cfg = cfg['campaigns'].get(args.campania, {})
-            if 'vicidial_api' in campania_cfg:
-                cfg['campaigns'][args.campania]['vicidial_api']['user'] = agent_user
-                cfg['campaigns'][args.campania]['vicidial_api']['phone_login'] = agent_alias
-                cfg['campaigns'][args.campania]['vicidial_api']['phone_pass'] = sip_password
-                cfg['campaigns'][args.campania]['vicidial_api']['password'] = sip_password
-
-        if 'vicidial_api' in cfg:
-            cfg['vicidial_api']['host'] = active_host
-
-        import json as _json
-        os.environ['VOICE_CONFIG_INLINE'] = _json.dumps(cfg, ensure_ascii=False)
-        logger.info("Config de campana actualizado con credenciales y host")
-
-
-    elif args.mode == "pruebas":
-        # Modo PRUEBAS: igual que produccion pero SIN pyVoIP.
+        # Modo PRODUCCION (antes pruebas): 
         # Zoiper (instalado en el equipo) maneja el SIP y el audio va por Voicemeeter.
-        # Util mientras se estabiliza la integracion pyVoIP.
         import json
         import socket
         import pymysql
@@ -248,45 +294,12 @@ async def main():
         with open(config_path, 'r', encoding='utf-8') as f:
             cfg = json.load(f)
 
-        server_map = {
-            "1": "192.168.50.121",
-            "2": "192.168.50.66"
-        }
-        active_host = server_map.get(args.server, "192.168.50.66")
+        # --- Carga dinamica de credenciales y host en memoria (igual que produccion) ---
+        agent_user, agent_alias, active_host = obtener_credenciales_agente(args)
 
-        # Actualizar host de DB general
+        # Actualizar host de DB general (Mock)
         import tools.vicidial_db as vdb
         vdb.DB_CONFIG["host"] = active_host
-
-        # Carga dinamica de credenciales por IP (igual que produccion)
-        ip_local = socket.gethostbyname(socket.gethostname())
-        agent_user = None
-        agent_alias = None
-        try:
-            conn = pymysql.connect(
-                host=active_host,
-                user='lhernandez',
-                password='lhernandez10',
-                database='asterisk',
-                cursorclass=DictCursor,
-                connect_timeout=5,
-                charset='utf8mb4'
-            )
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT nombre, alias FROM agentesDepuracion WHERE ip = %s LIMIT 1",
-                    (ip_local,)
-                )
-                row = cur.fetchone()
-            conn.close()
-            if row:
-                agent_user = row['nombre']
-                agent_alias = row['alias']
-                logger.info(f"[PRUEBAS] Credenciales: usuario={agent_user}, extension={agent_alias} (IP: {ip_local})")
-            else:
-                logger.warning(f"[PRUEBAS] No hay registro para IP {ip_local}. Usando defaults.")
-        except Exception as e:
-            logger.error(f"[PRUEBAS] Error leyendo BD: {e}")
 
         # Audio via Voicemeeter (Zoiper maneja el SIP)
         audio_interface = LocalAudioInterface(chunk=512)
@@ -302,20 +315,58 @@ async def main():
                 cfg['campaigns'][args.campania]['vicidial_api']['phone_login'] = agent_alias
                 cfg['campaigns'][args.campania]['vicidial_api']['phone_pass'] = sip_password
                 cfg['campaigns'][args.campania]['vicidial_api']['password'] = sip_password
+                if 'transfer' in cfg['campaigns'][args.campania]['vicidial_api']:
+                    cfg['campaigns'][args.campania]['vicidial_api']['transfer']['user'] = agent_user
+                
+                # Ajuste dinámico de campaign_id según el servidor asignado
+                if args.campania == 'plata':
+                    if active_host == "192.168.50.121":
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
+                    else:
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "pcardVir"
+                elif args.campania == 'amex':
+                    if active_host == "192.168.50.121":
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
+                    else:
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "AmexVirt"
+
+        if args.vici_campania:
+            campania_cfg = cfg['campaigns'].get(args.campania, {})
+            if 'vicidial_api' in campania_cfg:
+                cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = args.vici_campania
 
         if 'vicidial_api' in cfg:
             cfg['vicidial_api']['host'] = active_host
 
+        # Mantener únicamente la campaña activa para evitar exceder el límite de variables de entorno en Windows
+        if 'campaigns' in cfg:
+            cfg['campaigns'] = {args.campania: cfg['campaigns'][args.campania]}
+
         import json as _json
-        os.environ['VOICE_CONFIG_INLINE'] = _json.dumps(cfg, ensure_ascii=False)
-        logger.info("[PRUEBAS] Config actualizado con credenciales y host")
+        serialized_cfg = _json.dumps(cfg, ensure_ascii=False)
+        if len(serialized_cfg) > 30000:
+            override_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config', 'voice_config_override.json'))
+            with open(override_path, 'w', encoding='utf-8') as f:
+                f.write(serialized_cfg)
+            os.environ['VOICE_CONFIG_OVERRIDE'] = override_path
+            os.environ.pop('VOICE_CONFIG_INLINE', None)
+        else:
+            os.environ['VOICE_CONFIG_INLINE'] = serialized_cfg
+            os.environ.pop('VOICE_CONFIG_OVERRIDE', None)
+        logger.info("[PRODUCCION] Config actualizado con credenciales y host")
 
     else:
         audio_interface = LocalAudioInterface(chunk=512)
 
-    rpa_processes = []
+    script_dir = os.path.dirname(os.path.abspath(__file__))
 
     def cleanup_rpas():
+        override_path = os.path.join(script_dir, 'config', 'voice_config_override.json')
+        if os.path.exists(override_path):
+            try:
+                os.remove(override_path)
+            except Exception:
+                pass
         if rpa_processes:
             logger.info("🛑 [Local] Cerrando procesos RPA...")
             for proc in rpa_processes:
@@ -407,7 +458,10 @@ async def main():
         
         cleanup_rpas()
             
-        await asyncio.sleep(0.5)
+        try:
+            await asyncio.sleep(0.5)
+        except Exception:
+            pass
         logger.info("Sistemas de Hardware Liberados. Adiós.")
 
 
@@ -416,3 +470,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nEjecución Terminada por Terminal (Nivel OS).")
+        import os
+        os._exit(0)

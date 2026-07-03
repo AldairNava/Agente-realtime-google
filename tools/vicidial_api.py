@@ -16,10 +16,12 @@ class VicidialAPI:
         self.agent_user = config.get('agent_user') or self.user
         self.source = config.get('source', 'gemini_agent')
         
-        # Datos de logueo robusto
         self.phone_login = config.get('phone_login')
         self.phone_pass = config.get('phone_pass')
         self.campaign_id = config.get('campaign_id')
+        
+        # Transfer data
+        self.transfer_config = config.get('transfer', {})
         
         # Bandera para rastrear si se llamó a external_status
         self._status_called = False
@@ -132,15 +134,21 @@ class VicidialAPI:
         """Establece un código de pausa (AUX, BREAK, MEAL, etc.)."""
         return self._call_api("pause_code", {"value": code})
 
-    def transfer_conference(self, ingroup: str, value: str = "1") -> str:
+    def transfer_conference(self, ingroup: str = None, value: str = "1") -> str:
         """
         Transfiere la llamada activa a un ingroup/grupo de entrante en Vicidial.
+        Si no se pasa ingroup, lo toma automáticamente de la configuración de la campaña.
         """
-        logger.info(f"🔄 [VicidialAPI] Ejecutando transferencia real a la cola {ingroup}...")
+        target_group = ingroup if ingroup else self.transfer_config.get('ingrup')
+        if not target_group:
+            logger.error("Error: No se proporcionó ingroup y no hay ninguno en configuración.")
+            return "ERROR: No ingroup provided or configured."
+
+        logger.info(f"🔄 [VicidialAPI] Ejecutando transferencia real a la cola {target_group}...")
         try:
             res = self._call_api("transfer_conference", {
                 "value": "LOCAL_CLOSER",
-                "ingroup_choices": ingroup
+                "ingroup_choices": target_group
             })
             logger.info(f"VICIDIAL API [transfer_conference] Resultado: {res}")
             return f"RESULTADO: {res}"
@@ -175,10 +183,11 @@ class VicidialAPI:
                          data["lead_id"] = p.split("lead_id:")[1].strip()
         return data
 
-    def actualizar_comentarios_cliente(self, nombre_cliente: str, pantallas: str, paquete_ofrecido: str, cuenta: str = "", dudas_no_respondidas: str = "") -> str:
+    def actualizar_comentarios_cliente(self, nombre_cliente: str, pantallas: str = "", paquete_ofrecido: str = "", cuenta: str = "", dudas_no_respondidas: str = "", comentarios_generales: str = "") -> str:
         """
         Actualiza el campo 'comments' (comentarios) del cliente en la llamada activa de Vicidial
         antes de realizar una transferencia, inyectando el valor en el DOM y llamando al script de ViciDial.
+        Puedes usar campos específicos (pantallas, paquete) o simplemente enviar texto en 'comentarios_generales'.
         """
         logger.info("📝 [VicidialAPI] Iniciando actualización de comentarios del cliente...")
         if not self.phantom:
@@ -187,11 +196,14 @@ class VicidialAPI:
 
         try:
             # Formatear el comentario final
-            comments_formatted = f"Nombre: {nombre_cliente} | Pantallas: {pantallas} | Paquete: {paquete_ofrecido}"
-            if cuenta:
-                comments_formatted += f" | Cuenta: {cuenta}"
-            if dudas_no_respondidas:
-                comments_formatted += f" | Dudas: {dudas_no_respondidas}"
+            parts = [f"Nombre: {nombre_cliente}"]
+            if pantallas: parts.append(f"Pantallas: {pantallas}")
+            if paquete_ofrecido: parts.append(f"Paquete: {paquete_ofrecido}")
+            if cuenta: parts.append(f"Cuenta: {cuenta}")
+            if dudas_no_respondidas: parts.append(f"Dudas: {dudas_no_respondidas}")
+            if comentarios_generales: parts.append(f"Comentarios: {comentarios_generales}")
+            
+            comments_formatted = " | ".join(parts)
 
             # Código JavaScript para rellenar el textarea de comentarios y ejecutar el envío nativo
             js_code = """

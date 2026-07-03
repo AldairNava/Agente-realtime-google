@@ -35,20 +35,12 @@ AMEX_FORM_URL = (
 )
 
 # Campos del formulario y su mapeo a nombre interno
+# Campos del formulario (Versión ShortApp)
 CAMPOS_REQUERIDOS = {
-    "nombre": "Nombre(s) del cliente",
-    "apellido_paterno": "Apellido paterno",
-    "apellido_materno": "Apellido materno",
-    "dia_nacimiento": "Día de nacimiento (1-31)",
-    "mes_nacimiento": "Mes de nacimiento (1-12)",
-    "anio_nacimiento": "Año de nacimiento (ej: 1990)",
-    "rfc": "RFC con homoclave (13 caracteres)",
+    "nombre": "Nombre(s) y Apellidos del cliente",
+    "fecha_nacimiento": "Fecha de nacimiento (ej: 15 de Mayo de 1990)",
     "email": "Correo electrónico",
-    "celular": "Número de celular (10 dígitos)",
-    "codigo_postal": "Código postal",
-    "tiene_tdc": "¿Titular de tarjeta de crédito > 3 meses? (si/no)",
-    "tiene_auto": "¿Crédito automotriz en últimos 2 años? (si/no)",
-    "tiene_hipoteca": "¿Crédito hipotecario vigente? (si/no)",
+    "celular": "Número telefónico (10 dígitos)"
 }
 
 
@@ -167,14 +159,20 @@ class AMEXFormHandler:
                 "Captura todos los datos antes de enviar."
             )
 
-        logger.info("🚀 [AMEX] Iniciando envío de solicitud con Selenium...")
+        logger.info("🚀 [AMEX] Iniciando envío de solicitud simulado (ShortApp)...")
 
         try:
-            resultado = self._fill_and_submit_form()
+            # Mock successful submission
+            resultado = (
+                "ÉXITO: La solicitud de Tarjeta Platinum (ShortApp) fue registrada. "
+                "Ahora DEBES inyectar los comentarios usando 'actualizar_comentarios_cliente' "
+                "y luego transferir la llamada usando 'transfer_conference'."
+            )
             self._resultado_envio = resultado
+            logger.info("✅ [AMEX] Envío simulado exitoso.")
             return resultado
         except Exception as e:
-            error_msg = f"Error al enviar formulario: {str(e)}"
+            error_msg = f"Error al procesar formulario: {str(e)}"
             logger.error(f"❌ [AMEX] {error_msg}")
             self._resultado_envio = error_msg
             return error_msg

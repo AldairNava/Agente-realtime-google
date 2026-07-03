@@ -18,6 +18,29 @@ from .audio_recorder import AudioRecorder, AgentVoiceCapture
 logger = logging.getLogger(__name__)
 
 
+class SafeLiveConnection:
+    def __init__(self, connect_manager, connect_timeout=10.0, close_timeout=4.0):
+        self.connect_manager = connect_manager
+        self.connect_timeout = connect_timeout
+        self.close_timeout = close_timeout
+        self.conn_success = False
+
+    async def __aenter__(self):
+        session = await asyncio.wait_for(self.connect_manager.__aenter__(), timeout=self.connect_timeout)
+        self.conn_success = True
+        return session
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.conn_success:
+            try:
+                await asyncio.wait_for(self.connect_manager.__aexit__(exc_type, exc_val, exc_tb), timeout=self.close_timeout)
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ [SafeLiveConnection] Timeout al cerrar la sesión de Gemini Live. Forzando continuación.")
+            except Exception as ce:
+                logger.warning(f"⚠️ [SafeLiveConnection] Error al cerrar la sesión de Gemini Live: {ce}")
+        return False
+
+
 class VoiceAgent:
     def __init__(self, api_key, audio_interface=None, campania='amex', voice_mode='hibrido', 
                  execution_mode='local', grabacion_txt=None, grabacion_frase=None, grabacion_salida=None):
@@ -192,6 +215,7 @@ class VoiceAgent:
         self.client_lead_id = ''
         self.last_client_phone = ''
         self.last_client_cuenta = ''
+        self.last_client_lead_id = ''
 
     def fijar_estatus_final(self, estatus: str):
         """Herramienta llamada por Gemini para marcar el resultado de la llamada sin colgar."""
@@ -248,19 +272,7 @@ class VoiceAgent:
         }
 
         def _insert_cn():
-            conn = pymysql.connect(**DB_CONFIG)
-            try:
-                with conn.cursor() as cursor:
-                    columnas = ", ".join(registro.keys())
-                    marcadores = ", ".join(["%s"] * len(registro))
-                    sql = f"INSERT INTO CNAgenteDepuracion ({columnas}) VALUES ({marcadores})"
-                    cursor.execute(sql, list(registro.values()))
-                conn.commit()
-                logger.info("✅ [PlataTools] Registro insertado correctamente en CNAgenteDepuracion")
-            except Exception as e:
-                logger.error(f"❌ [PlataTools] Error al insertar en CNAgenteDepuracion: {e}")
-            finally:
-                conn.close()
+            logger.info("✅ [PlataTools] MOCK: Registro CNAgenteDepuracion: %s", registro)
 
         # Ejecutar inserción en background/hilo para no bloquear el bucle de eventos
         if hasattr(self, 'loop') and self.loop.is_running():
@@ -283,8 +295,17 @@ class VoiceAgent:
         return {"result": "success", "message": "Registro completado e inserción a CNAgenteDepuracion iniciada. Colgando llamada en unos segundos."}
 
     async def _delayed_hangup_timer(self):
-        wait_time = 5.0
-        logger.info(f"⏳ [Cierre] Esperando {wait_time}s...")
+        # Esperar a que termine de hablar (máximo 15 segundos)
+        logger.info("⏱️ [Cierre] Esperando a que termine el audio antes de colgar...")
+        for _ in range(30):
+            if not self.session_active:
+                break
+            if not getattr(self, '_ai_playback_active', False) and self.audio_out_queue.empty():
+                break
+            await asyncio.sleep(0.5)
+            
+        wait_time = 4.0 if getattr(self, 'transfer_executed', False) or self.campania_name == 'plata' else 2.0
+        logger.info(f"⏳ [Cierre] Audio terminado. Esperando margen de seguridad de {wait_time}s...")
         await asyncio.sleep(wait_time)
         if self.session_active and self.final_disposition:
             logger.warning(f"🛑 [Cierre] Enviando estatus: {self.final_disposition}")
@@ -293,125 +314,44 @@ class VoiceAgent:
             self.session_active = False
 
     async def _hangup_watchdog(self):
-        # Esperar suficiente tiempo para que el PhantomBrowser complete el login en Vicidial
-        # (navegar + paso1 + paso2 + seleccionar campaña + submit + disponible ≈ 30-40s)
-        logger.info("⏳ [Watchdog] Esperando 60s para que el browser complete el login en Vicidial...")
-        await asyncio.sleep(60)
-        while self.session_active:
-            try:
-                import pymysql
-                api_cfg = self.tools_dispatcher.api
-                temp_conn = await asyncio.to_thread(
-                    pymysql.connect, host=api_cfg.host, user='cron', 
-                    password='1234', db='asterisk'
-                )
-                with temp_conn.cursor() as cursor:
-                    query = "SELECT status FROM vicidial_live_agents WHERE user=%s LIMIT 1"
-                    cursor.execute(query, (api_cfg.user,))
-                    result = cursor.fetchone()
-                    if not result:
-                        logger.warning(f"⚠️ [Watchdog] Agente {api_cfg.user} desconectado. Cerrando.")
-                        self.session_active = False
-                        break
-                temp_conn.close()
-            except Exception as e:
-                logger.error(f"Error Watchdog: {e}")
-            await asyncio.sleep(5)
+        logger.info("⏳ [Watchdog] Desactivado watchdog de base de datos asterisk.")
+        return
 
     async def _time_watchdog(self):
-        logger.info("🕒 [Reloj] Iniciando watchdog de horario de trabajo...")
-        last_action = None
+        logger.info("🕒 [Reloj] Iniciando watchdog de horario de trabajo activo...")
         while self.agent_running:
             try:
                 now = datetime.now()
                 hour = now.hour
+                weekday = now.weekday()  # 0: Lunes, 1: Martes, ..., 4: Viernes, 5: Sábado, 6: Domingo
                 
-                # Caso 1: Hora de comida (entre las 2:00 PM y 3:00 PM -> 14:00:00 a 14:59:59)
-                if 14 <= hour < 15:
-                    if last_action != "break":
-                        # Solo pausar si el login en el navegador ya se completó con éxito
-                        if hasattr(self, 'phantom') and self.phantom and getattr(self.phantom, 'login_success', False):
-                            api_cfg = self.tools_dispatcher.api
-                            if api_cfg:
-                                logger.info("🕒 [Reloj] Horario detectado entre 2 y 3 PM. Colocando agente en PAUSA con código BREAK...")
-                                try:
-                                    # 1. Enviar comando de pausa
-                                    await asyncio.to_thread(api_cfg.external_pause, True)
-                                    
-                                    # 2. Esperar a que el agente esté realmente en estado PAUSED (máximo 5 segundos)
-                                    agent_paused = False
-                                    for attempt in range(5):
-                                        await asyncio.sleep(1)
-                                        status_data = await asyncio.to_thread(api_cfg.get_agent_status)
-                                        current_status = status_data.get("status", "UNKNOWN")
-                                        logger.info(f"🕒 [Reloj] Intento {attempt+1}: Estado actual de agente en Vicidial: {current_status}")
-                                        if current_status == "PAUSED":
-                                            agent_paused = True
-                                            break
-                                    
-                                    # Si por alguna razón la consulta de estado falla/no marca PAUSED, igual procedemos tras el ciclo
-                                    if not agent_paused:
-                                        logger.warning("🕒 [Reloj] No se pudo confirmar estado PAUSED vía API tras el ciclo de espera. Procediendo de todos modos...")
-
-                                    # 3. Intentar establecer el código de pausa
-                                    code_set_success = False
-                                    
-                                    # Método A: Ejecutar JS en PhantomBrowser (el más seguro, simula click directo)
-                                    if hasattr(self, 'phantom') and self.phantom:
-                                        code_set_success = await asyncio.to_thread(self.phantom.set_pause_code, "Brake")
-                                    
-                                    # Método B: Fallback vía API de Vicidial
-                                    if not code_set_success:
-                                        logger.warning("🕒 [Reloj] Fallback: Intentando establecer código de pausa vía API...")
-                                        res = await asyncio.to_thread(api_cfg.pause_code, "Brake")
-                                        if "ERROR" in res:
-                                            logger.warning(f"🕒 [Reloj] Error aplicando 'Brake' vía API: {res}. Reintentando con 'BREAK'...")
-                                            res = await asyncio.to_thread(api_cfg.pause_code, "BREAK")
-                                        logger.info(f"🕒 [Reloj] Resultado pause_code API: {res}")
-                                        
-                                    last_action = "break"
-                                except Exception as pe:
-                                    logger.error(f"Error aplicando pausa/break: {pe}")
-                            
-                # Caso 2: Fin de jornada (a partir de las 6:00 PM -> >= 18:00)
-                elif hour >= 18:
+                # Configuración de horario de salida:
+                # - De lunes a viernes (weekday < 5): Desconexión a las 6:00 PM (18:00)
+                # - Sábados (weekday == 5) y domingos (weekday == 6): Desconexión a las 3:00 PM (15:00)
+                if weekday < 5:
+                    limit_hour = 18
+                else:
+                    limit_hour = 15
+                
+                if hour >= limit_hour:
+                    logger.info(f"🕒 [Reloj] Horario de salida detectado ({limit_hour}:00 o posterior). Iniciando apagado y logout del agente...")
+                    # Intentar pausar el agente vía API primero
                     api_cfg = self.tools_dispatcher.api
                     if api_cfg:
-                        logger.warning("🕒 [Reloj] Fin de jornada detectado (después de las 6:00 PM). Iniciando cierre automático...")
                         try:
-                            await asyncio.to_thread(api_cfg._call_api, "logout", {"value": "LOGOUT"})
-                        except Exception as le:
-                            logger.error(f"Error enviando comando de logout: {le}")
-                        
-                        self.agent_running = False
-                        self.session_active = False
-                        last_action = "logout"
-                        
-                        # Dar un breve tiempo para que finalicen las tareas y la conexión a Gemini
-                        await asyncio.sleep(2)
-                        
-                        # Salida forzada para asegurar que no queden procesos o conexiones colgadas
-                        logger.warning("🕒 [Reloj] Deteniendo proceso...")
-                        os._exit(0)
-                else:
-                    # Fuera de horarios especiales, restablecer la última acción para permitir re-ejecución
-                    if last_action == "break":
-                        # Quitar pausa si volvemos del break
-                        if hasattr(self, 'phantom') and self.phantom and getattr(self.phantom, 'login_success', False):
-                            api_cfg = self.tools_dispatcher.api
-                            if api_cfg:
-                                logger.info("🕒 [Reloj] Fin del horario de comida. Quitando pausa al agente...")
-                                try:
-                                    await asyncio.to_thread(api_cfg.external_pause, False)
-                                except Exception as re:
-                                    logger.error(f"Error al quitar pausa al agente: {re}")
-                        last_action = None
-                        
+                            await asyncio.to_thread(api_cfg.external_pause, True)
+                            await asyncio.sleep(1)
+                        except Exception:
+                            pass
+                    self.agent_running = False
+                    self.session_active = False
+                    if hasattr(self, 'phantom') and self.phantom:
+                        await asyncio.to_thread(self.phantom.logout_and_stop)
+                    break
             except Exception as e:
                 logger.error(f"Error en watchdog de horario: {e}")
-                
             await asyncio.sleep(15)
-
+                
     async def _send_audio(self, session):
         try:
             while self.session_active:
@@ -457,11 +397,11 @@ class VoiceAgent:
                         logger.warning("⚠️ [Core] Tiempo de espera del saludo inicial agotado. Desmuteando micrófono por seguridad.")
 
                 if self.greeting_done:
-                    # Muteado temporal de los primeros 3 segundos de habla de la IA para evitar interrupciones
+                    # Muteado temporal de los primeros 4 segundos de habla de la IA para evitar interrupciones
                     is_muted = False
                     if getattr(self, '_ai_playback_active', False):
                         elapsed_speaking = asyncio.get_event_loop().time() - getattr(self, 'ai_speaking_start_time', 0)
-                        if elapsed_speaking < 3.0:
+                        if elapsed_speaking < 4.0:
                             is_muted = True
                     
                     if not is_muted:
@@ -551,11 +491,61 @@ class VoiceAgent:
                     return
                 self.transfer_executed = True
                 
-                logger.info("⏱️ Retrasando ejecución de transfer_conference 7 segundos")
-                # Wait up to 7 seconds in small chunks to detect session end
-                for _ in range(14):
+                # Para la campaña plata, siempre reproducimos la frase de despedida de forma manual controlada para asegurar que se diga completa antes de transferir
+                if self.campania_name == 'plata':
+                    logger.info("🎙️ [Transferencia] Campaña Plata detectada. Limpiando cola de audio para inyectar despedida controlada...")
+                    # Limpiar cola de audio existente
+                    while not self.audio_out_queue.empty():
+                        try:
+                            self.audio_out_queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                    self._ai_playback_active = False
+                    self.ai_speaking = False
+                    
+                    # Decidir qué frase usar basada en el historial de la llamada
+                    usar_cat_cortes = False
+                    if hasattr(self, 'call_transcript') and self.call_transcript:
+                        for entry in reversed(self.call_transcript[-4:]):
+                            lower_entry = entry.lower()
+                            if any(w in lower_entry for w in ["cat", "corte", "pago", "cuándo llega", "cuando llega", "entrega", "duda", "interés", "comisión", "comisiones"]):
+                                usar_cat_cortes = True
+                                break
+                    
+                    if usar_cat_cortes:
+                        texto_despedida = "Ah ok, mire, para poder brindarle esta información y de cualquier otra duda que usted tenga, lo voy a transferir con mi compañero para que le pueda brindar la información completa, no cuelgue por favor."
+                    else:
+                        texto_despedida = "De acuerdo, permítame un momento, lo voy a transferir con uno de mis compañeros para continuar con su registro, no cuelgue por favor."
+                    
+                    script_to_play = {
+                        "text": texto_despedida,
+                        "tts_direction": "Di con tono amable y de servicio, asegurando una transición suave:"
+                    }
+                    try:
+                        pcm_data = await self.audio_router._generate_tts(script_to_play)
+                        if pcm_data:
+                            CHUNK_SIZE = 4800
+                            self.ai_speaking = True
+                            self._ai_playback_active = True
+                            for i in range(0, len(pcm_data), CHUNK_SIZE):
+                                self.audio_out_queue.put_nowait(pcm_data[i:i + CHUNK_SIZE])
+                            logger.info(f"🔊 [Transferencia] Frase de despedida controlada encolada ({len(pcm_data)} bytes): '{texto_despedida}'")
+                    except Exception as tts_err:
+                        logger.error(f"❌ [Transferencia] Error generando despedida por TTS: {tts_err}")
+                
+                logger.info("⏱️ [Transferencia] Esperando a que el audio de despedida comience y termine de reproducirse...")
+                # Esperar a que la cola se vacíe y la reproducción termine (máximo 15 segundos)
+                for _ in range(30):
                     if not getattr(self, 'session_active', False):
-                        logger.info("📞 Cliente colgó durante la despedida. Cortando retraso de transferencia.")
+                        break
+                    if not getattr(self, '_ai_playback_active', False) and self.audio_out_queue.empty():
+                        break
+                    await asyncio.sleep(0.5)
+                
+                # Un pequeño margen de seguridad adicional para que termine el buffer de audio (2 segundos)
+                logger.info("⏱️ [Transferencia] Cola vacía. Esperando margen de seguridad de 2.0 segundos...")
+                for _ in range(4):
+                    if not getattr(self, 'session_active', False):
                         break
                     await asyncio.sleep(0.5)
 
@@ -612,7 +602,7 @@ class VoiceAgent:
                     if not getattr(self, '_ai_playback_active', False):
                         self._ai_playback_active = True
                         self.ai_speaking_start_time = asyncio.get_event_loop().time()
-                        logger.info("🔊 [Audio] Agente comenzó a hablar. Muteando mic por 3s para evitar interrupciones.")
+                        logger.info("🔊 [Audio] Agente comenzó a hablar. Muteando mic por 4s para evitar interrupciones.")
 
                     await self.audio_interface.write_chunk(data)
                     if self.audio_out_queue.empty():
@@ -664,37 +654,23 @@ class VoiceAgent:
                 now = asyncio.get_event_loop().time()
                 elapsed = now - getattr(self, 'last_client_speech_time', now)
 
-                # Paso 1: 30 segundos de silencio mutuo -> Primer aviso
-                if elapsed >= 30.0 and getattr(self, 'silence_warnings_sent', 0) == 0:
-                    logger.warning("⏱️ [Watchdog Silencio] 30s de silencio mutuo detectados. Enviando primer recordatorio al agente.")
+                # Paso 1: 7 segundos de silencio mutuo -> Primer aviso
+                if elapsed >= 7.0 and getattr(self, 'silence_warnings_sent', 0) == 0:
+                    logger.warning("⏱️ [Watchdog Silencio] 7s de silencio mutuo detectados. Enviando primer recordatorio al agente.")
                     self.silence_warnings_sent = 1
                     self.last_warning_sent_time = now
                     try:
                         await session.send_realtime_input(
-                            text="[SISTEMA: El cliente no ha respondido por 30 segundos. Pregúntale brevemente si sigue ahí, por ejemplo: '¿Hola? ¿Sigue ahí?' o '¿Me escucha?']"
+                            text="[SISTEMA: El cliente no ha respondido por 7 segundos. Pregúntale brevemente si sigue ahí, por ejemplo: '¿Hola? ¿Sigue ahí?' o '¿Me escucha?']"
                         )
                         if hasattr(self, 'call_transcript'):
                             self.call_transcript.append("[Sistema] Primer aviso de silencio enviado al agente.")
                     except Exception as se:
                         logger.error(f"Error enviando recordatorio 1: {se}")
 
-                # Paso 2: Otros 30 segundos (60s total) sin respuesta -> Segundo aviso
-                elif getattr(self, 'silence_warnings_sent', 0) == 1 and (now - getattr(self, 'last_warning_sent_time', now)) >= 30.0:
-                    logger.warning("⏱️ [Watchdog Silencio] Otros 30s de silencio (60s total). Enviando segundo recordatorio.")
-                    self.silence_warnings_sent = 2
-                    self.last_warning_sent_time = now
-                    try:
-                        await session.send_realtime_input(
-                            text="[SISTEMA: El cliente sigue sin responder por 60 segundos en total. Pregúntale por última vez si sigue ahí, por ejemplo: '¿Hay alguien ahí?' o '¿Sigue en la línea?']"
-                        )
-                        if hasattr(self, 'call_transcript'):
-                            self.call_transcript.append("[Sistema] Segundo aviso de silencio enviado al agente.")
-                    except Exception as se:
-                        logger.error(f"Error enviando recordatorio 2: {se}")
-
-                # Paso 3: Otros 30 segundos (90s total) sin respuesta -> Colgar
-                elif getattr(self, 'silence_warnings_sent', 0) == 2 and (now - getattr(self, 'last_warning_sent_time', now)) >= 30.0:
-                    logger.warning("⏱️ [Watchdog Silencio] 90s de silencio mutuo continuo. Colgando por falta de respuesta...")
+                # Paso 2: Otros 7 segundos (14s total) sin respuesta -> Colgar
+                elif getattr(self, 'silence_warnings_sent', 0) == 1 and (now - getattr(self, 'last_warning_sent_time', now)) >= 7.0:
+                    logger.warning("⏱️ [Watchdog Silencio] 14s de silencio mutuo continuo (7s tras aviso). Colgando por falta de respuesta...")
                     
                     no_resp_status = self.voice_cfg.get('dispositions', {}).get('no_response', 'SINRSPT')
                     self.final_disposition = no_resp_status
@@ -837,33 +813,36 @@ class VoiceAgent:
         )
 
         model = "models/gemini-3.1-flash-live-preview"
-        # Logueo en Vicidial si es producción o pruebas
-        if self.execution_mode in ('produccion', 'pruebas'):
-            from src.phantom_browser import PhantomAgent
-            api_cfg = self.tools_dispatcher.api
-            self.phantom = PhantomAgent(
-                api_cfg.host, api_cfg.phone_login, api_cfg.phone_pass,
-                api_cfg.user, api_cfg.password, api_cfg.campaign_id,
-                campania_name=self.campania_name
-            )
-            api_cfg.phantom = self.phantom
-            await asyncio.sleep(2)
-            self.phantom.start()
+        # Logueo en Vicidial si es producción y la campaña lo requiere
+        if self.execution_mode == 'produccion':
+            if self.voice_cfg.get('usa_navegador_vicidial', True):
+                from src.phantom_browser import PhantomAgent
+                api_cfg = self.tools_dispatcher.api
+                self.phantom = PhantomAgent(
+                    api_cfg.host, api_cfg.phone_login, api_cfg.phone_pass,
+                    api_cfg.user, api_cfg.password, api_cfg.campaign_id,
+                    campania_name=self.campania_name
+                )
+                api_cfg.phantom = self.phantom
+                await asyncio.sleep(2)
+                self.phantom.start()
+            else:
+                logger.info(f"👻 [Phantom] usa_navegador_vicidial es False para {self.campania_name}. No se lanzará Vicidial Phantom.")
 
         self.agent_running = True
-        if self.execution_mode in ('produccion', 'pruebas'):
+        if self.execution_mode == 'produccion':
             asyncio.create_task(self._time_watchdog())
         try:
             while self.agent_running:
                 self.session_active = True
                 self.vicidial_incall = True if self.execution_mode == 'local' else False
-                self.client_name = ""
+                self.client_name = "Aldair Nava Marquez" if self.execution_mode == 'local' else ""
                 self.call_transcript = []
                 self.last_client_speech_time = asyncio.get_event_loop().time()
                 self.silence_warnings_sent = 0
                 self.last_warning_sent_time = 0.0
-                self.client_phone = ""
-                self.client_cuenta = ""
+                self.client_phone = "5555555555" if self.execution_mode == 'local' else ""
+                self.client_cuenta = "12345678" if self.execution_mode == 'local' else ""
                 self._greeting_triggered = False
                 self.hangup_executed = False
                 self.transfer_executed = False
@@ -897,29 +876,43 @@ class VoiceAgent:
                     from .audio_recorder import AgentVoiceCapture
                     capture_path = os.path.join(self.capture_dir, self.grabacion_salida if self.grabacion_salida.endswith('.wav') else self.grabacion_salida + '.wav')
                     self.voice_capture = AgentVoiceCapture(output_path=capture_path)
-                elif self.voice_mode in ('live', 'hibrido') and self.execution_mode == 'local':
-                    from .audio_recorder import AgentVoiceCapture
-                    session_ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    # Guardar directo en la carpeta general recordings/ con su prefijo
-                    recordings_dir = os.path.join(os.path.dirname(__file__), '..', 'recordings')
-                    os.makedirs(recordings_dir, exist_ok=True)
-                    capture_path = os.path.join(recordings_dir, f'live_session_{session_ts}.wav')
-                    self.voice_capture = AgentVoiceCapture(output_path=capture_path)
 
                 try:
-                    async with self.client.aio.live.connect(model=model, config=config) as session:
+                    async with SafeLiveConnection(self.client.aio.live.connect(model=model, config=config)) as session:
                         logger.info("✅ Conexión establecida con Gemini. Esperando llamada...")
+                        
+                        if self.execution_mode == 'local':
+                            if self.campania_name == 'ventas_izzi':
+                                greeting_phrase = "Buen día, ¿hablo con Aldair?"
+                                brand_info = "Llamas de izzi y ofreces el servicio izzi tv+."
+                            elif self.campania_name == 'retencion':
+                                greeting_phrase = "Buen día, gracias por llamar a cuentas especiales izzi, ¿con quién tengo el gusto?"
+                                brand_info = "Te identificas como de Cuentas Especiales de Izzi."
+                            elif self.campania_name == 'plata':
+                                greeting_phrase = "¿Bueno? Bueno?, que tal buenas tardes me presento soy liliana hernandez"
+                                brand_info = "Llamas del centro telefónico autorizado 305 en representación de Banco Plata."
+                            elif self.campania_name == 'amex':
+                                greeting_phrase = "¿Bueno? Bueno?, que tal buenas tardes me presento soy liliana hernandez"
+                                brand_info = "Llamas de American Express México."
+                            else:
+                                greeting_phrase = "¿Bueno? Bueno?, que tal buenas tardes me presento soy liliana hernandez"
+                                brand_info = ""
+                            
+                            logger.info(f"📢 [Local] Inyectando contexto de prueba para cliente: {self.client_name}")
+                            self._greeting_triggered = True
+                            self.greeting_trigger_time = asyncio.get_event_loop().time()
+                            await session.send_realtime_input(
+                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name}. Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. {brand_info}]"
+                            )
                         
                         async def monitor():
                             was_in_call = False
-                            db_failed = False
+                            db_failed = True
                             while self.session_active:
                                 try:
                                     status = None
                                     lead_id = None
                                     lead_id_str = ""
-                                    first_name = ""
-                                    last_name = ""
                                     phone_number = ""
                                     cuenta = ""
                                     
@@ -941,8 +934,6 @@ class VoiceAgent:
                                                         cur.execute("SELECT first_name, last_name, phone_number FROM vicidial_list WHERE lead_id=%s", (lead_id,))
                                                         lead_res = cur.fetchone()
                                                         if lead_res:
-                                                            first_name = lead_res[0].strip() if lead_res[0] else ""
-                                                            last_name = lead_res[1].strip() if lead_res[1] else ""
                                                             phone_number = lead_res[2].strip() if lead_res[2] else ""
                                             conn.close()
                                         except Exception as dbe:
@@ -952,122 +943,114 @@ class VoiceAgent:
                                     # 2. Si no hay base de datos o falló, usar navegador
                                     if db_failed:
                                         if hasattr(self, 'phantom') and self.phantom:
-                                            call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
-                                            phone_number = call_data.get("phone_number", "")
-                                            first_name = call_data.get("first_name", "")
-                                            last_name = call_data.get("last_name", "")
-                                            cuenta = call_data.get("CUENTA", "")
-                                            lead_id_str = call_data.get("lead_id", "")
+                                            # Primero comprobar llamada de forma ultra-rápida usando la imagen de livecall
+                                            in_call = await asyncio.to_thread(self.phantom.is_in_call)
+                                            status = 'INCALL' if in_call else 'PAUSED'
                                             
-                                            if phone_number or cuenta:
-                                                is_hungup = await asyncio.to_thread(self.phantom.is_call_hungup)
-                                                status = 'PAUSED' if is_hungup else 'INCALL'
-                                            else:
-                                                status = 'PAUSED'
+                                            phone_number = ""
+                                            cuenta = ""
+                                            lead_id_str = ""
+                                            
+                                            if in_call:
+                                                # Obtener lead_id de forma instantánea usando JS para comprobar si es reconexión
+                                                lead_id_str = await asyncio.to_thread(self.phantom.get_lead_id_fast)
                                         else:
                                             status = 'PAUSED'
 
                                     # 3. Procesar estado de llamada
                                     if status == 'INCALL':
                                         if not was_in_call:
-                                            # Nueva llamada detectada. Asegurar que estamos en la pestaña SCRIPT
-                                            if hasattr(self, 'phantom') and self.phantom:
-                                                logger.info("👻 [Monitor] Nueva llamada. Activando pestaña SCRIPT en navegador...")
-                                                if self.voice_mode != 'grabacion':
-                                                    tasks.append(asyncio.create_task(self._silence_watchdog(session)))
-                                                await asyncio.to_thread(self.phantom.go_to_script_tab)
-                                                
-                                                # Polling de hasta 4 segundos (en intervalos de 0.5s) esperando que cambie la cuenta
-                                                # (o el teléfono en su defecto) y que tengamos un nombre de cliente real/válido (no genérico).
-                                                new_client_found = False
-                                                for i in range(8):
-                                                    call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
-                                                    b_phone = call_data.get("phone_number", "")
-                                                    b_first = call_data.get("first_name", "")
-                                                    b_last = call_data.get("last_name", "")
-                                                    b_cuenta = call_data.get("CUENTA", "")
-                                                    b_lead_id = call_data.get("lead_id", "")
-                                                    
-                                                    # Determinar si el cliente/cuenta cambió respecto a la llamada anterior
-                                                    has_change = False
-                                                    if b_cuenta:
-                                                        if b_cuenta != self.last_client_cuenta:
-                                                            has_change = True
-                                                    elif b_phone:
-                                                        if b_phone != self.last_client_phone:
-                                                            has_change = True
-                                                            
-                                                    if has_change:
-                                                        # Comprobar si el nombre ya es válido (no genérico ni vacío)
-                                                        is_valid = b_first and b_first.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST", "")
-                                                        
-                                                        # Guardar datos temporales
-                                                        phone_number = b_phone
-                                                        first_name = b_first
-                                                        last_name = b_last
-                                                        cuenta = b_cuenta
-                                                        lead_id_str = b_lead_id
-                                                        
-                                                        if is_valid:
-                                                            new_client_found = True
-                                                            logger.info(f"👻 [Monitor] Nuevo cliente válido detectado en intento {i+1}: cuenta={b_cuenta}, tel={b_phone}, nombre='{b_first}'")
-                                                            break
-                                                        else:
-                                                            logger.info(f"👻 [Monitor] Intento {i+1}: Cliente detectado (cuenta={b_cuenta}, tel={b_phone}), pero el nombre sigue genérico ('{b_first}'). Esperando...")
-                                                    await asyncio.sleep(0.5)
-                                                
-                                                if not new_client_found:
-                                                    # Fallback tras expirar el polling (usar lo que se tenga)
-                                                    call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
-                                                    b_phone = call_data.get("phone_number", "")
-                                                    b_cuenta = call_data.get("CUENTA", "")
-                                                    if b_cuenta or b_phone:
-                                                        phone_number = b_phone
-                                                        first_name = call_data.get("first_name", "")
-                                                        last_name = call_data.get("last_name", "")
-                                                        cuenta = b_cuenta
-                                                        lead_id_str = call_data.get("lead_id", "")
-                                                        logger.warning(f"👻 [Monitor] Expiró el tiempo de polling sin nombre válido. Usando: cuenta='{cuenta}', tel='{phone_number}', nombre='{first_name}'")
-                                                
-                                                # Una vez leídos los datos, regresar a la pestaña MAIN
-                                                logger.info("👻 [Monitor] Datos leídos. Regresando a pestaña MAIN...")
-                                                await asyncio.to_thread(self.phantom.go_to_main_tab)
+                                            # Comprobar si realmente cambió el lead_id con respecto al último procesado (evitar doble saludo en reconexión)
+                                            has_change = False
+                                            if lead_id_str:
+                                                if lead_id_str != self.last_client_lead_id:
+                                                    has_change = True
+                                            else:
+                                                # Si por alguna razón no pudimos leer el lead_id aún, asumimos que es nueva llamada
+                                                has_change = True
                                             
+                                            if not has_change:
+                                                self.vicidial_incall = True
+                                                was_in_call = True
+                                                continue
+
+                                            # --- ESTA ES UNA NUEVA LLAMADA: SALUDO INMEDIATO ---
+                                            self.vicidial_incall = True
                                             was_in_call = True
-                                            self.call_start_time = asyncio.get_event_loop().time()  # Timestamp del inicio de llamada
+                                            self.call_start_time = asyncio.get_event_loop().time()
                                             self.last_client_speech_time = asyncio.get_event_loop().time()
                                             self.silence_warnings_sent = 0
-                                            self.client_name = f"{first_name} {last_name}".strip()
+                                            
+                                            # Inyectar inmediatamente el primer saludo rápido a Gemini y activar canal de audio
+                                            self._greeting_triggered = True
+                                            self.greeting_trigger_time = asyncio.get_event_loop().time()
+                                            
+                                            logger.info("📢 [IA] Enviando saludo rápido inicial (sin demoras)...")
+                                            await session.send_realtime_input(
+                                                text="[SISTEMA: LLAMADA CONECTADA. Di de viva voz únicamente y de forma exacta: 'Hola, hola buenas tardes.'. Está ESTRICTAMENTE PROHIBIDO agregar palabras adicionales, muletillas o variaciones. Di exactamente esa frase y después espera en silencio absoluto.]"
+                                            )
+                                            
+                                            if self.voice_mode != 'grabacion':
+                                                tasks.append(asyncio.create_task(self._silence_watchdog(session)))
+                                                
+                                            # --- AHORA EXTRAER LA INFORMACIÓN DE LA LLAMADA EN PARALELO ---
+                                            call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
+                                            phone_number = call_data.get("phone_number", "")
+                                            cuenta = call_data.get("CUENTA", "")
+                                            lead_id_str = call_data.get("lead_id", "") or lead_id_str
+                                            
                                             self.client_phone = phone_number
                                             self.client_cuenta = cuenta
                                             self.client_lead_id = lead_id_str
-                                            self.last_client_phone = phone_number  # Guardar el teléfono activo procesado
-                                            self.last_client_cuenta = cuenta      # Guardar la cuenta activa procesada
+                                            self.last_client_lead_id = lead_id_str # Guardar el lead_id activo procesado
                                             
-                                            logger.info("📞 [Monitor] Llamada conectada. Cliente: %s | Tel: %s | Cuenta: %s", self.client_name, self.client_phone, self.client_cuenta)
-                                            self.call_transcript.append(f"[Llamada Conectada] Cliente: {self.client_name}, Teléfono: {self.client_phone}, Cuenta: {self.client_cuenta}")
-                                            
-                                            is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
+                                            # Determinar el nombre de la compañía/marca para el mensaje del sistema
                                             if self.campania_name == 'ventas_izzi':
-                                                if is_valid_name:
-                                                    greeting_phrase = f"Buen día, ¿hablo con {first_name}?"
-                                                else:
-                                                    greeting_phrase = "Buen día, ¿hablo con el titular de la línea?"
+                                                brand_info = "Llamas de izzi y ofreces el servicio izzi tv+."
                                             elif self.campania_name == 'retencion':
-                                                greeting_phrase = "Buen día, gracias por llamar a cuentas especiales izzi, ¿con quién tengo el gusto?"
+                                                brand_info = "Te identificas como de Cuentas Especiales de Izzi."
+                                            elif self.campania_name == 'plata':
+                                                brand_info = "Llamas del centro telefónico autorizado 305 en representación de Banco Plata."
+                                            elif self.campania_name == 'amex':
+                                                brand_info = "Llamas de American Express México."
                                             else:
-                                                if is_valid_name:
-                                                    greeting_phrase = f"Buen día, me puede confirmar si ¿hablo con el señor(a) {first_name}?"
-                                                else:
-                                                    greeting_phrase = "Buen día, me puede confirmar si ¿hablo con el titular de la línea?"
+                                                brand_info = ""
+
+                                            logger.info("📞 [Monitor] Información de llamada cargada. Lead ID: %s | Tel: %s", self.client_lead_id, self.client_phone)
+                                            self.call_transcript.append(f"[Llamada Conectada] Lead ID: {self.client_lead_id}, Teléfono: {self.client_phone}")
+
+                                            # En paralelo, intentamos obtener el nombre del cliente desde el campo de texto "first_name" de la pestaña principal
+                                            first_name = ""
+                                            last_name = ""
+                                            for i in range(7):
+                                                call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
+                                                first_name = call_data.get("first_name", "").strip()
+                                                last_name = call_data.get("last_name", "").strip()
+                                                
+                                                is_valid = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST", "")
+                                                if is_valid:
+                                                    logger.info(f"👻 [Monitor] Nombre de cliente obtenido de input first_name en intento {i+1}: '{first_name}'")
+                                                    break
+                                                await asyncio.sleep(0.3)
+                                                
+                                            self.client_name = f"{first_name} {last_name}".strip()
                                             
-                                            # Inyectar el contexto del cliente a Gemini
+                                            # Esperar a que el agente termine de decir "Hola, hola buenas tardes" antes de inyectar la segunda frase
+                                            elapsed = asyncio.get_event_loop().time() - self.greeting_trigger_time
+                                            if elapsed < 2.0:
+                                                await asyncio.sleep(2.0 - elapsed)
+                                                
+                                            is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
+                                            if is_valid_name:
+                                                greeting_phrase_2 = f"Qué tal buenas tardes, ¿se encontrará {first_name}?"
+                                            else:
+                                                greeting_phrase_2 = "Qué tal buenas tardes, ¿se encontrará el titular de la línea?"
+                                                
+                                            logger.info(f"📢 [IA] Enviando segunda parte del saludo: '{greeting_phrase_2}'")
                                             await session.send_realtime_input(
-                                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name or 'Desconocido'}. Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta or 'Desconocido'}. IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa y di que llamas de izzi.]"
+                                                text=f"[SISTEMA: SEGUNDO SALUDO. Di de viva voz únicamente y de forma exacta: '{greeting_phrase_2}'. Está ESTRICTAMENTE PROHIBIDO que agregues cualquier otra frase, saludo o explicación adicional en este turno. Di exactamente esa frase y espera la respuesta del cliente. {brand_info}]"
                                             )
                                             
-                                            # Y finalmente activar la llamada para desmutear/saludar
-                                            self.vicidial_incall = True
                                         else:
                                             # Si ya estaba en llamada, mantener activa la bandera
                                             self.vicidial_incall = True
@@ -1089,7 +1072,10 @@ class VoiceAgent:
                                             break
                                 except Exception as me:
                                     logger.error(f"Error en monitor: {me}")
-                                await asyncio.sleep(1)
+                                
+                                # Polling dinámico: 0.1s para contestar al instante si no hay llamada; 1.0s si ya estamos en llamada
+                                sleep_time = 1.0 if was_in_call else 0.1
+                                await asyncio.sleep(sleep_time)
 
                         tasks = [
                             asyncio.create_task(self._send_audio(session)),
@@ -1144,8 +1130,8 @@ class VoiceAgent:
                     # Guardar la información de la llamada en el JSON diario con formato legible
                     if self.client_phone or self.client_cuenta or self.client_name:
                         try:
-                            # Generar resumen asíncronamente
-                            resumen = await self._generate_call_summary()
+                            # Resumen de llamada desactivado por petición del usuario para ahorrar cuota
+                            resumen = "Desactivado"
                             
                             today_str = datetime.now().strftime("%Y%m%d")
                             log_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', self.campania_name, 'registro_de_llamadas')
@@ -1155,6 +1141,15 @@ class VoiceAgent:
                             api_cfg = self.tools_dispatcher.api
                             final_status = (api_cfg.last_status_sent if api_cfg else None) or self.final_disposition or "SIN_ESTATUS"
                             
+                            # Extraer datos capturados (ej. formulario AMEX)
+                            datos_extra = {}
+                            if hasattr(self, 'amex_handler') and self.amex_handler:
+                                handler_data = getattr(self.amex_handler, '_datos', {})
+                                datos_extra["nombre_capturado"] = handler_data.get("nombre")
+                                datos_extra["fecha_nacimiento"] = handler_data.get("fecha_nacimiento")
+                                datos_extra["email"] = handler_data.get("email")
+                                datos_extra["telefono_confirmado"] = handler_data.get("celular")
+
                             call_data = {
                                 "campania": self.campania_name,
                                 "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1164,6 +1159,7 @@ class VoiceAgent:
                                 "telefono": self.client_phone,
                                 "estatus": final_status,
                                 "resumen": resumen,
+                                "datos_capturados": datos_extra,
                                 "audio": os.path.basename(self.recorder.call_path) if self.recorder else None
                             }
                             
@@ -1192,6 +1188,10 @@ class VoiceAgent:
                     self.voice_capture = None
                     if self.voice_mode == 'grabacion':
                         self.agent_running = False
+
+                    if self.agent_running:
+                        logger.info("⏳ [Core] Esperando 2 segundos de seguridad antes de la siguiente conexión...")
+                        await asyncio.sleep(2.0)
         except Exception as e:
             logger.error(f"Error Crítico: {e}")
         finally:
