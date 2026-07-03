@@ -1117,8 +1117,8 @@ class VoiceAgent:
                         # Asegurar que se haya tipificado y colgado antes de reiniciar la sesión de voz
                         if self.execution_mode in ('produccion', 'pruebas') and hasattr(self, 'phantom') and self.phantom:
                             api_cfg = self.tools_dispatcher.api
-                            # Evitar doble ejecución si la IA ya inició el proceso de colgar
-                            if api_cfg and not getattr(api_cfg, 'call_hungup_sent', False) and not getattr(self, 'hangup_executed', False):
+                            # Evitar doble ejecución si la IA ya inició el proceso de colgar o transferir
+                            if api_cfg and not getattr(api_cfg, 'call_hungup_sent', False) and not getattr(self, 'hangup_executed', False) and not getattr(self, 'transfer_executed', False):
                                 if getattr(api_cfg, '_status_called', False):
                                     logger.info(f"ℹ️ [Core] La llamada finalizó con tipificación explícita '{api_cfg._pending_status}'. Ejecutando colgado...")
                                     await asyncio.to_thread(api_cfg.external_hangup)
