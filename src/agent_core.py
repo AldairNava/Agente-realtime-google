@@ -498,47 +498,7 @@ class VoiceAgent:
                     return
                 self.transfer_executed = True
                 
-                # Para la campaña plata, siempre reproducimos la frase de despedida de forma manual controlada para asegurar que se diga completa antes de transferir
-                if self.campania_name == 'plata':
-                    logger.info("🎙️ [Transferencia] Campaña Plata detectada. Limpiando cola de audio para inyectar despedida controlada...")
-                    # Limpiar cola de audio existente
-                    while not self.audio_out_queue.empty():
-                        try:
-                            self.audio_out_queue.get_nowait()
-                        except asyncio.QueueEmpty:
-                            break
-                    self._ai_playback_active = False
-                    self.ai_speaking = False
-                    
-                    # Decidir qué frase usar basada en el historial de la llamada
-                    usar_cat_cortes = False
-                    if hasattr(self, 'call_transcript') and self.call_transcript:
-                        for entry in reversed(self.call_transcript[-4:]):
-                            lower_entry = entry.lower()
-                            if any(w in lower_entry for w in ["cat", "corte", "pago", "cuándo llega", "cuando llega", "entrega", "duda", "interés", "comisión", "comisiones"]):
-                                usar_cat_cortes = True
-                                break
-                    
-                    if usar_cat_cortes:
-                        texto_despedida = "Ah ok, mire, para poder brindarle esta información y de cualquier otra duda que usted tenga, lo voy a transferir con mi compañero para que le pueda brindar la información completa, no cuelgue por favor."
-                    else:
-                        texto_despedida = "De acuerdo, permítame un momento, lo voy a transferir con uno de mis compañeros para continuar con su registro, no cuelgue por favor."
-                    
-                    script_to_play = {
-                        "text": texto_despedida,
-                        "tts_direction": "Di con tono amable y de servicio, asegurando una transición suave:"
-                    }
-                    try:
-                        pcm_data = await self.audio_router._generate_tts(script_to_play)
-                        if pcm_data:
-                            CHUNK_SIZE = 4800
-                            self.ai_speaking = True
-                            self._ai_playback_active = True
-                            for i in range(0, len(pcm_data), CHUNK_SIZE):
-                                self.audio_out_queue.put_nowait(pcm_data[i:i + CHUNK_SIZE])
-                            logger.info(f"🔊 [Transferencia] Frase de despedida controlada encolada ({len(pcm_data)} bytes): '{texto_despedida}'")
-                    except Exception as tts_err:
-                        logger.error(f"❌ [Transferencia] Error generando despedida por TTS: {tts_err}")
+
                 
                 logger.info("⏱️ [Transferencia] Esperando a que el audio de despedida comience y termine de reproducirse...")
                 # Esperar a que la cola se vacíe y la reproducción termine (máximo 15 segundos)

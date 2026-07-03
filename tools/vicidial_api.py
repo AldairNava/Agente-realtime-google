@@ -150,6 +150,29 @@ class VicidialAPI:
                 "ingroup_choices": ingroup
             })
             logger.info(f"VICIDIAL API [transfer_conference] Resultado: {res}")
+            
+            # Post-transferencia: tipificar y poner disponible tras un retraso de 6 segundos
+            if "SUCCESS" in res:
+                import threading
+                def post_transfer():
+                    import time
+                    logger.info("⏳ [VicidialAPI] Esperando 6 segundos post-transferencia para tipificar...")
+                    time.sleep(6.0)
+                    
+                    # 1. Determinar la tipificación basada en la campaña
+                    campania = getattr(self.phantom, 'campania_name', '') if self.phantom else ''
+                    status = 'SCVEN' if campania == 'plata' else 'TRANSvent'
+                    
+                    logger.warning(f"💾 [VicidialAPI] Enviando tipificación post-transferencia: {status}")
+                    self._call_api("external_status", {"value": status})
+                    
+                    # 2. Poner al agente en disponible nuevamente en el navegador
+                    if self.phantom:
+                        logger.info("🖥️ [VicidialAPI] Poniendo al agente en disponible post-transferencia...")
+                        self.phantom.resume_agent()
+                        
+                threading.Thread(target=post_transfer, daemon=True).start()
+                
             return f"RESULTADO: {res}"
         except Exception as e:
             logger.error(f"Error en transferencia a {ingroup}: {e}")

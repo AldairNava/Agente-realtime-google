@@ -836,6 +836,18 @@ class PhantomAgent:
             logger.error(f"Error al colgar llamada en el navegador: {e}")
             return False
 
+    def resume_agent(self) -> bool:
+        """Pone al agente en estado DISPONIBLE (RESUME)."""
+        if not self._running or not self.driver:
+            logger.warning("👻 [Phantom] No se puede resumir el agente: navegador inactivo.")
+            return False
+        try:
+            logger.info("🖥️ [Phantom] Intentando poner al agente en DISPONIBLE...")
+            return self._click_resume()
+        except Exception as e:
+            logger.error(f"Error al resumir el agente en el navegador: {e}")
+            return False
+
     def logout_and_stop(self):
         """Intenta hacer un logout limpio de Vicidial y luego apaga el navegador."""
         if not self._running or not self.driver:
