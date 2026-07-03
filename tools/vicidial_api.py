@@ -99,6 +99,13 @@ class VicidialAPI:
         logger.info("🛑 [VicidialAPI] Ejecutando colgado de canal (external_hangup)...")
         res_hangup = self._call_api("external_hangup", {"value": "1"})
         
+        # 1.1 Ejecutar fallback directo en el navegador si está disponible para asegurar el colgado físico
+        if getattr(self, 'phantom', None):
+            try:
+                self.phantom.hangup_call_browser()
+            except Exception as pe:
+                logger.error(f"Error en fallback de colgado en navegador: {pe}")
+        
         # 2. Esperar obligatoriamente 3 segundos a que cargue la pantalla de disposición de Vicidial
         import time
         logger.info("⏳ [VicidialAPI] Esperando 3 segundos en pantalla de disposición antes de tipificar...")
@@ -151,6 +158,29 @@ class VicidialAPI:
                 "ingroup_choices": target_group
             })
             logger.info(f"VICIDIAL API [transfer_conference] Resultado: {res}")
+            
+            # Post-transferencia: tipificar y poner disponible tras un retraso de 6 segundos
+            if "SUCCESS" in res:
+                import threading
+                def post_transfer():
+                    import time
+                    logger.info("⏳ [VicidialAPI] Esperando 6 segundos post-transferencia para tipificar...")
+                    time.sleep(6.0)
+                    
+                    # 1. Determinar la tipificación basada en la campaña
+                    campania = getattr(self.phantom, 'campania_name', '') if self.phantom else ''
+                    status = 'SCVEN' if campania == 'plata' else 'TRANSvent'
+                    
+                    logger.warning(f"💾 [VicidialAPI] Enviando tipificación post-transferencia: {status}")
+                    self._call_api("external_status", {"value": status})
+                    
+                    # 2. Poner al agente en disponible nuevamente en el navegador
+                    if self.phantom:
+                        logger.info("🖥️ [VicidialAPI] Poniendo al agente en disponible post-transferencia...")
+                        self.phantom.resume_agent()
+                        
+                threading.Thread(target=post_transfer, daemon=True).start()
+                
             return f"RESULTADO: {res}"
         except Exception as e:
             logger.error(f"Error en transferencia a {ingroup}: {e}")

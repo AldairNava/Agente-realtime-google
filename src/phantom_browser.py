@@ -805,6 +805,108 @@ class PhantomAgent:
         finally:
             self.stop()
 
+    def hangup_call_browser(self) -> bool:
+        """Intenta colgar la llamada activa simulando el clic o ejecutando la función JS en el navegador."""
+        if not self._running or not self.driver:
+            logger.warning("👻 [Phantom] No se puede colgar la llamada: navegador inactivo.")
+            return False
+        
+        js_code = """
+        try {
+            if (typeof window.main_hangup_link_clicked === 'function') {
+                window.main_hangup_link_clicked();
+                return 'SUCCESS: main_hangup_link_clicked';
+            }
+            if (typeof window.ctHangUp === 'function') {
+                window.ctHangUp();
+                return 'SUCCESS: ctHangUp';
+            }
+            var el = document.getElementById('HeaderHangupLink') || 
+                     document.getElementById('HangupLink') || 
+                     document.getElementById('Hangup') ||
+                     document.querySelector('a[href*="hangup"]') ||
+                     document.querySelector('a[onclick*="hangup"]');
+            if (el) {
+                el.click();
+                return 'SUCCESS: Element click';
+            }
+            // Buscar en iframes
+            var iframes = document.getElementsByTagName('iframe');
+            for (var i = 0; i < iframes.length; i++) {
+                try {
+                    var win = iframes[i].contentWindow;
+                    var doc = iframes[i].contentDocument || win.document;
+                    if (typeof win.main_hangup_link_clicked === 'function') {
+                        win.main_hangup_link_clicked();
+                        return 'SUCCESS: main_hangup_link_clicked in iframe';
+                    }
+                    var ifEl = doc.getElementById('HeaderHangupLink') || 
+                               doc.getElementById('HangupLink') || 
+                               doc.getElementById('Hangup') ||
+                               doc.querySelector('a[href*="hangup"]') ||
+                               doc.querySelector('a[onclick*="hangup"]');
+                    if (ifEl) {
+                        ifEl.click();
+                        return 'SUCCESS: Element click in iframe';
+                    }
+                } catch(e) {}
+            }
+            return 'ERROR: No hangup function or element found';
+        } catch(err) {
+            return 'ERROR: ' + err.message;
+        }
+        """
+        try:
+            logger.info("🖥️ [Phantom] Intentando colgar llamada a través del navegador...")
+            res = self.driver.execute_script(js_code)
+            logger.info(f"VICIDIAL JS [hangup_call_browser]: {res}")
+            return "SUCCESS" in str(res)
+        except Exception as e:
+            logger.error(f"Error al colgar llamada en el navegador: {e}")
+            return False
+
+    def resume_agent(self) -> bool:
+        """Pone al agente en estado DISPONIBLE (RESUME)."""
+        if not self._running or not self.driver:
+            logger.warning("👻 [Phantom] No se puede resumir el agente: navegador inactivo.")
+            return False
+        try:
+            logger.info("🖥️ [Phantom] Intentando poner al agente en DISPONIBLE...")
+            return self._click_resume()
+        except Exception as e:
+            logger.error(f"Error al resumir el agente en el navegador: {e}")
+            return False
+
+    def logout_and_stop(self):
+        """Intenta hacer un logout limpio de Vicidial y luego apaga el navegador."""
+        if not self._running or not self.driver:
+            return
+        try:
+            logger.info("👻 [Phantom] Intentando hacer logout limpio de Vicidial...")
+            # Intentar hacer clic en el enlace/botón de LOGOUT
+            # En Vicidial, suele ser un link que contiene "LOGOUT" o tiene una función "LogOuT"
+            selectors = [
+                "//a[contains(@href, 'LogOuT')]",
+                "//a[contains(@onclick, 'LogOuT')]",
+                "//a[contains(@onclick, 'normal_logout')]",
+                "//*[contains(text(), 'LOGOUT')]",
+                "//*[contains(text(), 'Log Out')]"
+            ]
+            for selector in selectors:
+                try:
+                    btn = self.driver.find_element(By.XPATH, selector)
+                    if btn.is_displayed():
+                        btn.click()
+                        logger.info(f"👻 [Phantom] ✅ Clic en botón logout de Vicidial ({selector}).")
+                        time.sleep(3)
+                        break
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"👻 [Phantom] Error durante el proceso de logout: {e}")
+        finally:
+            self.stop()
+
     # ------------------------------------------------------------------
     # API pública
     # ------------------------------------------------------------------

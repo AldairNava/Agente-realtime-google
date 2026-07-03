@@ -165,12 +165,12 @@ async def main():
     parser.add_argument("--vici-campania", type=str,
                         help="ID de la campaña en Vicidial (ej: pcardVir, TVVirt) si es distinta a la del agente")
 
-    parser.add_argument("--mode", choices=["local", "produccion"], default="local",
-                        help="Entorno: 'local' (micro directo, sin Vici/Zoiper), 'produccion' (Zoiper+Vicidial/Phantom)")
+    parser.add_argument("--mode", choices=["local", "produccion", "pruebas"], default="local",
+                        help="Entorno: 'local' (micro), 'produccion' (pyVoIP+Vicidial), 'pruebas' (Zoiper+Vicidial, sin SIP interno)")
     parser.add_argument("--server", choices=["1", "2"], default="1",
                         help="Servidor Vicidial: '1' (192.168.50.121), '2' (192.168.50.66)")
 
-    parser.add_argument("--voice", choices=["live", "hibrido", "grabacion"], default="live",
+    parser.add_argument("--voice", choices=["live", "hibrido", "grabacion"], default="hibrido",
                         help="Modalidad de voz: 'live' (solo IA), 'hibrido' (IA + Pregrabados) o 'grabacion'")
 
     # Argumentos para Modo Grabación
@@ -277,14 +277,89 @@ async def main():
         logger.warning(f"⚠️ [Ruido de Fondo] No se pudo iniciar el ruido de fondo: {e}")
 
     audio_interface = None
-    
-    # === [ANTIGUO MODO PRODUCCION COMENTADO (pyVoIP)] ===
-    # if args.mode == "produccion_antiguo":
-    #     ... (Código de AsteriskManager y SipAudioInterface) ...
-
     if args.mode == "produccion":
-        # Modo PRODUCCION (antes pruebas): 
+        import json
+        import socket
+        import pymysql
+        from pymysql.cursors import DictCursor
+
+        config_path = os.path.join(os.path.dirname(__file__), 'config', 'voice_config.json')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            cfg = json.load(f)
+
+        # --- Carga dinámica de credenciales y host en memoria ---
+        agent_user, agent_alias, active_host = obtener_credenciales_agente(args)
+
+        # Actualizar host de DB general (Mock)
+        import tools.vicidial_db as vdb
+        vdb.DB_CONFIG["host"] = active_host
+
+        # --- Audio: pyVoIP como softphone automático (sin Zoiper) ---
+        # pyVoIP se registra como la extensión del agente and auto-contesta las llamadas de Vicidial
+        sip_extension = agent_alias or os.getenv('SIP_EXTENSION', '7929')
+        sip_password = 'Cyber123'
+        audio_interface = SipAudioInterface(
+            server=os.getenv('SIP_SERVER_IP', active_host),
+            port=int(os.getenv('SIP_PORT', 5060)),
+            user=sip_extension,
+            password=sip_password
+        )
+        logger.info(f"Audio en modo PRODUCCION: SipAudioInterface como {sip_extension}@{active_host}")
+
+        # Inyectar credenciales dinámicas en el config de la campaña (en memoria, sin archivos tmp)
+        if agent_user and agent_alias:
+            sip_password = 'Cyber123'
+            campania_cfg = cfg['campaigns'].get(args.campania, {})
+            if 'vicidial_api' in campania_cfg:
+                cfg['campaigns'][args.campania]['vicidial_api']['user'] = agent_user
+                cfg['campaigns'][args.campania]['vicidial_api']['phone_login'] = agent_alias
+                cfg['campaigns'][args.campania]['vicidial_api']['phone_pass'] = sip_password
+                cfg['campaigns'][args.campania]['vicidial_api']['password'] = sip_password
+                if 'transfer' in cfg['campaigns'][args.campania]['vicidial_api']:
+                    cfg['campaigns'][args.campania]['vicidial_api']['transfer']['user'] = agent_user
+                
+                # Ajuste dinámico de campaign_id según el servidor asignado
+                if args.campania == 'plata':
+                    if active_host == "192.168.50.121":
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
+                    else:
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "pcardVir"
+                elif args.campania == 'amex':
+                    if active_host == "192.168.50.121":
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
+                    else:
+                        cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "AmexVirt"
+
+        if args.vici_campania:
+            campania_cfg = cfg['campaigns'].get(args.campania, {})
+            if 'vicidial_api' in campania_cfg:
+                cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = args.vici_campania
+
+        if 'vicidial_api' in cfg:
+            cfg['vicidial_api']['host'] = active_host
+
+        # Mantener únicamente la campaña activa para evitar exceder el límite de variables de entorno en Windows
+        if 'campaigns' in cfg:
+            cfg['campaigns'] = {args.campania: cfg['campaigns'][args.campania]}
+
+        import json as _json
+        serialized_cfg = _json.dumps(cfg, ensure_ascii=False)
+        if len(serialized_cfg) > 30000:
+            override_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'config', 'voice_config_override.json'))
+            with open(override_path, 'w', encoding='utf-8') as f:
+                f.write(serialized_cfg)
+            os.environ['VOICE_CONFIG_OVERRIDE'] = override_path
+            os.environ.pop('VOICE_CONFIG_INLINE', None)
+        else:
+            os.environ['VOICE_CONFIG_INLINE'] = serialized_cfg
+            os.environ.pop('VOICE_CONFIG_OVERRIDE', None)
+        logger.info("Config de campana actualizado con credenciales y host")
+
+
+    elif args.mode == "pruebas":
+        # Modo PRUEBAS: igual que produccion pero SIN pyVoIP.
         # Zoiper (instalado en el equipo) maneja el SIP y el audio va por Voicemeeter.
+        # Util mientras se estabiliza la integracion pyVoIP.
         import json
         import socket
         import pymysql
@@ -353,7 +428,7 @@ async def main():
         else:
             os.environ['VOICE_CONFIG_INLINE'] = serialized_cfg
             os.environ.pop('VOICE_CONFIG_OVERRIDE', None)
-        logger.info("[PRODUCCION] Config actualizado con credenciales y host")
+        logger.info("[PRUEBAS] Config actualizado con credenciales y host")
 
     else:
         audio_interface = LocalAudioInterface(chunk=512)
@@ -458,10 +533,7 @@ async def main():
         
         cleanup_rpas()
             
-        try:
-            await asyncio.sleep(0.5)
-        except Exception:
-            pass
+        await asyncio.sleep(0.5)
         logger.info("Sistemas de Hardware Liberados. Adiós.")
 
 
@@ -470,5 +542,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nEjecución Terminada por Terminal (Nivel OS).")
-        import os
-        os._exit(0)

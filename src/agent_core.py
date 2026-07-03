@@ -239,7 +239,13 @@ class VoiceAgent:
         tipificacion: str
     ) -> dict:
         """
-        Pausa la llamada, marca la salida e inserta los datos de la llamada en la BD CNAgenteDepuracion.
+        Pausa la llamada en el dialer, marca la salida en el sistema e inserta los datos de contacto y tipificación en la base de datos de agentes.
+        Esta herramienta debe ejecutarse obligatoriamente para clasificar y colgar la llamada.
+
+        Args:
+            cn_type: Código de tipo de contacto. Debe ser '1' para clientes regulares (que contestan, rechazan, etc.) o '2' para otros casos (cliente hostil, buzón de voz, reprogramaciones).
+            cn_motivo: El motivo de finalización de la llamada. Valores válidos: 'NUMERO EQUIVOCADO', 'Cliente Reprograma', 'CLIENTE HOSTIL', 'CLIENTE RECHAZA', 'VENTA EXITOSA', 'SIN CONTACTO'.
+            tipificacion: El código de tipificación oficial de la llamada correspondiente al Catálogo de Tipificaciones Obligatorias. Ejemplos: 'SCNUEQ', 'SCMADI', 'SCCLGR', 'SCNOI', 'SCVEN', 'NCBUZ', 'SCCCU'.
         """
         logger.warning(f"📞 [PlataCard] external_pause_and_flag_exit invocado: type={cn_type}, motivo={cn_motivo}, tipificacion={tipificacion}")
         
@@ -298,8 +304,6 @@ class VoiceAgent:
         # Esperar a que termine de hablar (máximo 15 segundos)
         logger.info("⏱️ [Cierre] Esperando a que termine el audio antes de colgar...")
         for _ in range(30):
-            if not self.session_active:
-                break
             if not getattr(self, '_ai_playback_active', False) and self.audio_out_queue.empty():
                 break
             await asyncio.sleep(0.5)
@@ -307,10 +311,13 @@ class VoiceAgent:
         wait_time = 4.0 if getattr(self, 'transfer_executed', False) or self.campania_name == 'plata' else 2.0
         logger.info(f"⏳ [Cierre] Audio terminado. Esperando margen de seguridad de {wait_time}s...")
         await asyncio.sleep(wait_time)
-        if self.session_active and self.final_disposition:
+        if self.final_disposition:
             logger.warning(f"🛑 [Cierre] Enviando estatus: {self.final_disposition}")
-            await asyncio.to_thread(self.tools_dispatcher.api.external_status, self.final_disposition)
-            await asyncio.to_thread(self.tools_dispatcher.api.external_hangup)
+            if self.execution_mode in ('produccion', 'pruebas'):
+                await asyncio.to_thread(self.tools_dispatcher.api.external_status, self.final_disposition)
+                await asyncio.to_thread(self.tools_dispatcher.api.external_hangup)
+            else:
+                logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
             self.session_active = False
 
     async def _hangup_watchdog(self):
@@ -491,47 +498,7 @@ class VoiceAgent:
                     return
                 self.transfer_executed = True
                 
-                # Para la campaña plata, siempre reproducimos la frase de despedida de forma manual controlada para asegurar que se diga completa antes de transferir
-                if self.campania_name == 'plata':
-                    logger.info("🎙️ [Transferencia] Campaña Plata detectada. Limpiando cola de audio para inyectar despedida controlada...")
-                    # Limpiar cola de audio existente
-                    while not self.audio_out_queue.empty():
-                        try:
-                            self.audio_out_queue.get_nowait()
-                        except asyncio.QueueEmpty:
-                            break
-                    self._ai_playback_active = False
-                    self.ai_speaking = False
-                    
-                    # Decidir qué frase usar basada en el historial de la llamada
-                    usar_cat_cortes = False
-                    if hasattr(self, 'call_transcript') and self.call_transcript:
-                        for entry in reversed(self.call_transcript[-4:]):
-                            lower_entry = entry.lower()
-                            if any(w in lower_entry for w in ["cat", "corte", "pago", "cuándo llega", "cuando llega", "entrega", "duda", "interés", "comisión", "comisiones"]):
-                                usar_cat_cortes = True
-                                break
-                    
-                    if usar_cat_cortes:
-                        texto_despedida = "Ah ok, mire, para poder brindarle esta información y de cualquier otra duda que usted tenga, lo voy a transferir con mi compañero para que le pueda brindar la información completa, no cuelgue por favor."
-                    else:
-                        texto_despedida = "De acuerdo, permítame un momento, lo voy a transferir con uno de mis compañeros para continuar con su registro, no cuelgue por favor."
-                    
-                    script_to_play = {
-                        "text": texto_despedida,
-                        "tts_direction": "Di con tono amable y de servicio, asegurando una transición suave:"
-                    }
-                    try:
-                        pcm_data = await self.audio_router._generate_tts(script_to_play)
-                        if pcm_data:
-                            CHUNK_SIZE = 4800
-                            self.ai_speaking = True
-                            self._ai_playback_active = True
-                            for i in range(0, len(pcm_data), CHUNK_SIZE):
-                                self.audio_out_queue.put_nowait(pcm_data[i:i + CHUNK_SIZE])
-                            logger.info(f"🔊 [Transferencia] Frase de despedida controlada encolada ({len(pcm_data)} bytes): '{texto_despedida}'")
-                    except Exception as tts_err:
-                        logger.error(f"❌ [Transferencia] Error generando despedida por TTS: {tts_err}")
+
                 
                 logger.info("⏱️ [Transferencia] Esperando a que el audio de despedida comience y termine de reproducirse...")
                 # Esperar a que la cola se vacíe y la reproducción termine (máximo 15 segundos)
@@ -674,8 +641,8 @@ class VoiceAgent:
                     
                     no_resp_status = self.voice_cfg.get('dispositions', {}).get('no_response', 'SINRSPT')
                     self.final_disposition = no_resp_status
-                    api_cfg = self.tools_dispatcher.api
-                    if api_cfg:
+                    if self.execution_mode in ('produccion', 'pruebas'):
+                        api_cfg = self.tools_dispatcher.api
                         logger.warning(f"⏱️ [Watchdog Silencio] Ejecutando colgado y tipificando como {no_resp_status}...")
                         try:
                             await asyncio.to_thread(api_cfg.external_status, no_resp_status)
@@ -683,7 +650,7 @@ class VoiceAgent:
                         except Exception as he:
                             logger.error(f"Error colgando llamada por silencio: {he}")
                     else:
-                        logger.warning("⏱️ [Watchdog Silencio] Modo local/sin API. Colgando localmente...")
+                        logger.warning("⏱️ [Watchdog Silencio] Modo local. Colgando localmente...")
                     
                     if hasattr(self, 'call_transcript'):
                         self.call_transcript.append("[Sistema] Colgado automático por silencio (SINRSPT).")
@@ -766,7 +733,7 @@ class VoiceAgent:
             voicemail_status = "NCBUZ"
         elif self.campania_name == 'plata':
             cierre_rules = (
-                "\n2. CIERRE DE LLAMADA: Al terminar la interacción con el cliente (ya sea por venta exitosa, rechazo, reprogramación o llamada cortada), debes despedirte formalmente y llamar a la herramienta 'external_pause_and_flag_exit' con los parámetros correspondientes (cn_type, cn_motivo, tipificacion)."
+                "\n2. CIERRE DE LLAMADA: Al terminar la interacción con el cliente (ya sea por venta exitosa, rechazo, reprogramación o llamada cortada), debes despedirte formalmente y, en esa misma respuesta (en el mismo turno), llamar a la herramienta 'external_pause_and_flag_exit' con los parámetros correspondientes (cn_type, cn_motivo, tipificacion). NUNCA debes mencionarle al cliente que vas a colgar la llamada ni que vas a tipificar o clasificar la llamada. Debe ser un proceso totalmente silencioso e invisible para el cliente. Simplemente di la frase de despedida correspondiente del catálogo y, en el mismo turno, ejecuta la herramienta."
             )
             voicemail_status = "NCBUZ"
         elif self.campania_name == 'retencion':
@@ -813,24 +780,21 @@ class VoiceAgent:
         )
 
         model = "models/gemini-3.1-flash-live-preview"
-        # Logueo en Vicidial si es producción y la campaña lo requiere
-        if self.execution_mode == 'produccion':
-            if self.voice_cfg.get('usa_navegador_vicidial', True):
-                from src.phantom_browser import PhantomAgent
-                api_cfg = self.tools_dispatcher.api
-                self.phantom = PhantomAgent(
-                    api_cfg.host, api_cfg.phone_login, api_cfg.phone_pass,
-                    api_cfg.user, api_cfg.password, api_cfg.campaign_id,
-                    campania_name=self.campania_name
-                )
-                api_cfg.phantom = self.phantom
-                await asyncio.sleep(2)
-                self.phantom.start()
-            else:
-                logger.info(f"👻 [Phantom] usa_navegador_vicidial es False para {self.campania_name}. No se lanzará Vicidial Phantom.")
+        # Logueo en Vicidial si es producción o pruebas
+        if self.execution_mode in ('produccion', 'pruebas'):
+            from src.phantom_browser import PhantomAgent
+            api_cfg = self.tools_dispatcher.api
+            self.phantom = PhantomAgent(
+                api_cfg.host, api_cfg.phone_login, api_cfg.phone_pass,
+                api_cfg.user, api_cfg.password, api_cfg.campaign_id,
+                campania_name=self.campania_name
+            )
+            api_cfg.phantom = self.phantom
+            await asyncio.sleep(2)
+            self.phantom.start()
 
         self.agent_running = True
-        if self.execution_mode == 'produccion':
+        if self.execution_mode in ('produccion', 'pruebas'):
             asyncio.create_task(self._time_watchdog())
         try:
             while self.agent_running:
@@ -889,13 +853,13 @@ class VoiceAgent:
                                 greeting_phrase = "Buen día, gracias por llamar a cuentas especiales izzi, ¿con quién tengo el gusto?"
                                 brand_info = "Te identificas como de Cuentas Especiales de Izzi."
                             elif self.campania_name == 'plata':
-                                greeting_phrase = "¿Bueno? Bueno?, que tal buenas tardes me presento soy liliana hernandez"
+                                greeting_phrase = "Hola, hola buenas tardes."
                                 brand_info = "Llamas del centro telefónico autorizado 305 en representación de Banco Plata."
                             elif self.campania_name == 'amex':
                                 greeting_phrase = "¿Bueno? Bueno?, que tal buenas tardes me presento soy liliana hernandez"
                                 brand_info = "Llamas de American Express México."
                             else:
-                                greeting_phrase = "¿Bueno? Bueno?, que tal buenas tardes me presento soy liliana hernandez"
+                                greeting_phrase = f"Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con {self.client_name}?"
                                 brand_info = ""
                             
                             logger.info(f"📢 [Local] Inyectando contexto de prueba para cliente: {self.client_name}")
@@ -1035,21 +999,35 @@ class VoiceAgent:
                                                 
                                             self.client_name = f"{first_name} {last_name}".strip()
                                             
-                                            # Esperar a que el agente termine de decir "Hola, hola buenas tardes" antes de inyectar la segunda frase
-                                            elapsed = asyncio.get_event_loop().time() - self.greeting_trigger_time
-                                            if elapsed < 2.0:
-                                                await asyncio.sleep(2.0 - elapsed)
+                                            if self.campania_name in ['plata', 'amex']:
+                                                # Enviar los datos del cliente de forma silenciosa para el contexto del agente, sin forzar la segunda frase de inmediato
+                                                is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
+                                                self.client_name = f"{first_name} {last_name}".strip() if is_valid_name else ""
                                                 
-                                            is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
-                                            if is_valid_name:
-                                                greeting_phrase_2 = f"Qué tal buenas tardes, ¿se encontrará {first_name}?"
+                                                context_text = (
+                                                    f"[SISTEMA: INFORMACIÓN DE LA LLAMADA. Nombre del cliente: {self.client_name or 'Desconocido'}. "
+                                                    f"Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. "
+                                                    f"REGLA: La llamada ya inició y dijiste de viva voz 'Hola, hola buenas tardes.'. Ahora debes esperar la respuesta "
+                                                    f"del cliente y continuar la plática de acuerdo con tu guía de conversación para verificar el titular. {brand_info}]"
+                                                )
+                                                logger.info(f"📢 [Monitor] Inyectando contexto de {self.campania_name}: {context_text}")
+                                                await session.send_realtime_input(text=context_text)
                                             else:
-                                                greeting_phrase_2 = "Qué tal buenas tardes, ¿se encontrará el titular de la línea?"
-                                                
-                                            logger.info(f"📢 [IA] Enviando segunda parte del saludo: '{greeting_phrase_2}'")
-                                            await session.send_realtime_input(
-                                                text=f"[SISTEMA: SEGUNDO SALUDO. Di de viva voz únicamente y de forma exacta: '{greeting_phrase_2}'. Está ESTRICTAMENTE PROHIBIDO que agregues cualquier otra frase, saludo o explicación adicional en este turno. Di exactamente esa frase y espera la respuesta del cliente. {brand_info}]"
-                                            )
+                                                # Esperar a que el agente termine de decir "Hola, hola buenas tardes" antes de inyectar la segunda frase
+                                                elapsed = asyncio.get_event_loop().time() - self.greeting_trigger_time
+                                                if elapsed < 2.0:
+                                                    await asyncio.sleep(2.0 - elapsed)
+                                                    
+                                                is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
+                                                if is_valid_name:
+                                                    greeting_phrase_2 = f"Qué tal buenas tardes, ¿se encontrará {first_name}?"
+                                                else:
+                                                    greeting_phrase_2 = "Qué tal buenas tardes, ¿se encontrará el titular de la línea?"
+                                                    
+                                                logger.info(f"📢 [IA] Enviando segunda parte del saludo: '{greeting_phrase_2}'")
+                                                await session.send_realtime_input(
+                                                    text=f"[SISTEMA: SEGUNDO SALUDO. Di de viva voz únicamente y de forma exacta: '{greeting_phrase_2}'. Está ESTRICTAMENTE PROHIBIDO que agregues cualquier otra frase, saludo o explicación adicional en este turno. Di exactamente esa frase y espera la respuesta del cliente. {brand_info}]"
+                                                )
                                             
                                         else:
                                             # Si ya estaba en llamada, mantener activa la bandera
@@ -1099,15 +1077,19 @@ class VoiceAgent:
                         # Asegurar que se haya tipificado y colgado antes de reiniciar la sesión de voz
                         if self.execution_mode in ('produccion', 'pruebas') and hasattr(self, 'phantom') and self.phantom:
                             api_cfg = self.tools_dispatcher.api
-                            # Evitar doble ejecución si la IA ya inició el proceso de colgar
-                            if api_cfg and not getattr(api_cfg, 'call_hungup_sent', False) and not getattr(self, 'hangup_executed', False):
-                                fallback_status = self.final_disposition
-                                if not fallback_status:
-                                    status_opts = self.voice_cfg.get('dispositions', {})
-                                    fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
-                                logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
-                                await asyncio.to_thread(api_cfg.external_status, fallback_status)
-                                await asyncio.to_thread(api_cfg.external_hangup)
+                            # Evitar doble ejecución si la IA ya inició el proceso de colgar o transferir
+                            if api_cfg and not getattr(api_cfg, 'call_hungup_sent', False) and not getattr(self, 'hangup_executed', False) and not getattr(self, 'transfer_executed', False):
+                                if getattr(api_cfg, '_status_called', False):
+                                    logger.info(f"ℹ️ [Core] La llamada finalizó con tipificación explícita '{api_cfg._pending_status}'. Ejecutando colgado...")
+                                    await asyncio.to_thread(api_cfg.external_hangup)
+                                else:
+                                    fallback_status = self.final_disposition
+                                    if not fallback_status:
+                                        status_opts = self.voice_cfg.get('dispositions', {})
+                                        fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
+                                    logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
+                                    await asyncio.to_thread(api_cfg.external_status, fallback_status)
+                                    await asyncio.to_thread(api_cfg.external_hangup)
 
                         logger.info("🔄 [Core] Reiniciando sesión de voz para esperar la siguiente llamada...")
                 
@@ -1141,15 +1123,6 @@ class VoiceAgent:
                             api_cfg = self.tools_dispatcher.api
                             final_status = (api_cfg.last_status_sent if api_cfg else None) or self.final_disposition or "SIN_ESTATUS"
                             
-                            # Extraer datos capturados (ej. formulario AMEX)
-                            datos_extra = {}
-                            if hasattr(self, 'amex_handler') and self.amex_handler:
-                                handler_data = getattr(self.amex_handler, '_datos', {})
-                                datos_extra["nombre_capturado"] = handler_data.get("nombre")
-                                datos_extra["fecha_nacimiento"] = handler_data.get("fecha_nacimiento")
-                                datos_extra["email"] = handler_data.get("email")
-                                datos_extra["telefono_confirmado"] = handler_data.get("celular")
-
                             call_data = {
                                 "campania": self.campania_name,
                                 "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1159,7 +1132,6 @@ class VoiceAgent:
                                 "telefono": self.client_phone,
                                 "estatus": final_status,
                                 "resumen": resumen,
-                                "datos_capturados": datos_extra,
                                 "audio": os.path.basename(self.recorder.call_path) if self.recorder else None
                             }
                             
