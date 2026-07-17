@@ -13,7 +13,7 @@ def obtener_cmd():
         "-nodisp",
         "-autoexit",
         "-loop", "0",
-        "-af", "volume=0.05",
+        "-af", "volume=0.07",
         AUDIO_PATH
     ]
 

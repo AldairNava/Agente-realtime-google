@@ -298,13 +298,19 @@ async def main():
         # pyVoIP se registra como la extensión del agente and auto-contesta las llamadas de Vicidial
         sip_extension = agent_alias or os.getenv('SIP_EXTENSION', '7929')
         sip_password = 'Cyber123'
-        audio_interface = SipAudioInterface(
-            server=os.getenv('SIP_SERVER_IP', active_host),
-            port=int(os.getenv('SIP_PORT', 5060)),
-            user=sip_extension,
-            password=sip_password
-        )
-        logger.info(f"Audio en modo PRODUCCION: SipAudioInterface como {sip_extension}@{active_host}")
+        
+        # COMENTADO TEMPORALMENTE A PETICIÓN: NO usar SIP interno
+        # audio_interface = SipAudioInterface(
+        #     server=os.getenv('SIP_SERVER_IP', active_host),
+        #     port=int(os.getenv('SIP_PORT', 5060)),
+        #     user=sip_extension,
+        #     password=sip_password
+        # )
+        # logger.info(f"Audio en modo PRODUCCION: SipAudioInterface como {sip_extension}@{active_host}")
+        
+        # En su lugar, usamos audio local/virtual
+        audio_interface = LocalAudioInterface(chunk=512)
+        logger.info(f"[PRODUCCION MODIFICADO] Audio vía LocalAudio/Voicemeeter (SIP Interno comentado)")
 
         # Inyectar credenciales dinámicas en el config de la campaña (en memoria, sin archivos tmp)
         if agent_user and agent_alias:

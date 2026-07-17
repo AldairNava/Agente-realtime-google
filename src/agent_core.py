@@ -106,6 +106,8 @@ class VoiceAgent:
         self.audio_router = AudioRouter(api_key=api_key, scripts_path=scripts_path)
 
         # Tools Base
+        from tools.knowledge_rag import KnowledgeRAG
+        self.rag = KnowledgeRAG()
         extra_tools = [self.fijar_estatus_final]
         
         # Modo Híbrido: Solo si el modo es hibrido, activamos pregrabados (Desactivado por petición de usuario para usar voz directa)
@@ -122,9 +124,14 @@ class VoiceAgent:
             extra_tools.extend([
                 self.amex_handler.guardar_dato_cliente,
                 self.amex_handler.ver_datos_capturados,
-                self.amex_handler.enviar_solicitud_amex,
+                self.amex_handler.iniciar_llenado_formulario_amex,
+                self.amex_handler.confirmar_rfc_amex,
+                self.amex_handler.proveer_dato_faltante_amex,
+                self.amex_handler.obtener_rfc_extraido_amex,
+                self.finalizar_venta_amex,
+                self.rag.consultar_catalogo_amex
             ])
-            logger.info("💳 [AMEX] Tools de formulario AMEX activadas.")
+            logger.info("💳 [AMEX] Tools de formulario AMEX y catálogo RAG activadas.")
         elif self.campania_name == 'retencion':
             from tools.retencion_tools import (
                 guardar_cuenta_cliente,
@@ -155,6 +162,7 @@ class VoiceAgent:
                 crm_llenado,
                 codigo_txt,
                 self.external_pause_and_flag_exit,
+                self.rag.consultar_informacion_plata,
             ])
             # Limpiar señales pendientes al inicio
             limpiar_senales_plata()
@@ -216,10 +224,195 @@ class VoiceAgent:
         self.last_client_phone = ''
         self.last_client_cuenta = ''
         self.last_client_lead_id = ''
+        self.user_is_speaking = False
+        self.last_speech_time = 0.0
+
+    def _get_current_call_state(self) -> dict:
+        """
+        Determina el estado actual de la llamada basándose en los datos en memoria
+        y archivos de señales según la campaña activa.
+        Retorna un diccionario con 'nodo_actual', 'completados', 'pendientes' y 'detalles'.
+        """
+        state = {
+            "nodo_actual": "N/A",
+            "completados": [],
+            "pendientes": [],
+            "detalles": ""
+        }
+        
+        try:
+            if self.campania_name == 'amex':
+                # Datos capturados en el Form Handler
+                datos = {}
+                if getattr(self, 'amex_handler', None) and hasattr(self.amex_handler, '_datos'):
+                    datos = self.amex_handler._datos
+                
+                # Lista de campos posibles
+                campos_perfilamiento = ["tiene_tdc", "buro_credito_limpio", "es_cliente_amex"]
+                campos_datos = ["nombre", "apellido_paterno", "apellido_materno", "dia_nacimiento", "mes_nacimiento", "anio_nacimiento", "rfc", "email", "celular", "codigo_postal"]
+                
+                completados = [k for k in (campos_perfilamiento + campos_datos) if datos.get(k)]
+                pendientes_perfilamiento = [k for k in campos_perfilamiento if not datos.get(k)]
+                pendientes_datos = [k for k in campos_datos if not datos.get(k)]
+                
+                # Comprobar si se ha llamado al catálogo
+                catalogo_llamado = any("consultar_catalogo_amex" in x for x in getattr(self, 'call_transcript', []))
+                
+                # Determinar Nodo
+                if getattr(self, 'final_disposition', None) == 'SALE' or not self.session_active:
+                    nodo = "nodo_5_cierre"
+                elif datos.get("nombre"):
+                    nodo = "nodo_4_registro_shortapp"
+                elif catalogo_llamado or datos.get("ingresos"):
+                    nodo = "nodo_3_oferta_beneficios"
+                elif completados:
+                    nodo = "nodo_2_sondeo_filtro"
+                else:
+                    nodo = "nodo_1_saludo"
+                
+                state["nodo_actual"] = nodo
+                state["completados"] = completados
+                state["pendientes"] = pendientes_perfilamiento + pendientes_datos if nodo in ("nodo_1_saludo", "nodo_2_sondeo_filtro") else pendientes_datos
+                state["detalles"] = f"Campos listos: {', '.join(completados)} | Faltan: {', '.join(state['pendientes'])}"
+                
+            elif self.campania_name == 'retencion':
+                # Señales escritas en la carpeta de rpa_signals
+                import os
+                signals_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', 'retencion', 'rpa_signals')
+                
+                cuenta_exists = os.path.exists(os.path.join(signals_dir, 'cuenta.txt'))
+                tel_exists = os.path.exists(os.path.join(signals_dir, 'tel.txt'))
+                nombre_exists = os.path.exists(os.path.join(signals_dir, 'nombre.txt'))
+                cancelacion_exists = os.path.exists(os.path.join(signals_dir, 'cancelacion.txt'))
+                motivo_exists = os.path.exists(os.path.join(signals_dir, 'motivo.txt'))
+                
+                completados = []
+                if cuenta_exists: completados.append("cuenta")
+                if tel_exists: completados.append("telefono")
+                if nombre_exists: completados.append("nombre")
+                if cancelacion_exists: completados.append("tipo_cancelacion")
+                if motivo_exists: completados.append("motivo_cancelacion")
+                
+                # Determinar Nodo
+                if motivo_exists:
+                    nodo = "nodo_4_precancelacion"
+                elif cancelacion_exists:
+                    nodo = "nodo_3_negociacion"
+                elif cuenta_exists or tel_exists or nombre_exists:
+                    nodo = "nodo_2_sondeo"
+                else:
+                    nodo = "nodo_1_saludo_e_identificacion"
+                    
+                state["nodo_actual"] = nodo
+                state["completados"] = completados
+                
+                pendientes = []
+                if nodo == "nodo_1_saludo_e_identificacion":
+                    pendientes = ["identificar_cuenta_o_telefono"]
+                elif nodo == "nodo_2_sondeo":
+                    pendientes = ["tipo_cancelacion", "motivo_cancelacion"]
+                elif nodo == "nodo_3_negociacion":
+                    pendientes = ["ofrecer_alternativas_retencion", "cesion_derechos"]
+                else:
+                    pendientes = ["generar_folio_precancelacion", "despedida"]
+                    
+                state["pendientes"] = pendientes
+                state["detalles"] = f"Señales encontradas: {', '.join(completados)} | Pendientes: {', '.join(pendientes)}"
+                
+            elif self.campania_name == 'ventas_izzi':
+                comentarios_llamado = any("actualizar_comentarios_cliente" in x for x in getattr(self, 'call_transcript', []))
+                transfer_llamado = any("transfer_conference" in x for x in getattr(self, 'call_transcript', []))
+                
+                transcript_str = "\n".join(getattr(self, 'call_transcript', []))
+                
+                if transfer_llamado:
+                    nodo = "nodo_5_transferencia"
+                elif comentarios_llamado:
+                    nodo = "nodo_5_transferencia"
+                elif "paquete" in transcript_str.lower() or "básico" in transcript_str.lower() or "premium" in transcript_str.lower():
+                    nodo = "nodo_4_ofrecer_paquetes"
+                elif "internet" in transcript_str.lower():
+                    nodo = "nodo_3_enganche_perfilamiento"
+                elif self.client_speech_detected:
+                    nodo = "nodo_2_filtro_internet"
+                else:
+                    nodo = "nodo_1_saludo"
+                    
+                state["nodo_actual"] = nodo
+                state["completados"] = []
+                state["pendientes"] = []
+                if nodo == "nodo_1_saludo":
+                    state["pendientes"] = ["saludar", "preguntar_televisiones"]
+                elif nodo == "nodo_2_filtro_internet":
+                    state["pendientes"] = ["confirmar_internet_en_casa"]
+                elif nodo == "nodo_3_enganche_perfilamiento":
+                    state["pendientes"] = ["preguntar_gustos_contenido"]
+                elif nodo == "nodo_4_ofrecer_paquetes":
+                    state["pendientes"] = ["ofrecer_paquete_afirmativo", "preguntar_acuerdo_transferencia"]
+                else:
+                    state["pendientes"] = ["actualizar_comentarios", "transferir"]
+                    
+                state["detalles"] = f"Fase detectada: {nodo}"
+                
+            elif self.campania_name == 'plata':
+                import os
+                signals_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', 'plata', 'rpa_signals')
+                
+                crm_exists = os.path.exists(os.path.join(signals_dir, 'crm_datos.json'))
+                codigo_exists = os.path.exists(os.path.join(signals_dir, 'codigo.txt'))
+                
+                completados = []
+                if crm_exists: completados.append("crm_datos")
+                if codigo_exists: completados.append("codigo_confirmacion")
+                
+                if codigo_exists:
+                    nodo = "nodo_4_transferencia"
+                elif crm_exists:
+                    nodo = "nodo_3_objecion"
+                elif self.client_speech_detected:
+                    nodo = "nodo_2_pitch"
+                else:
+                    nodo = "nodo_1_saludo"
+                    
+                state["nodo_actual"] = nodo
+                state["completados"] = completados
+                
+                pendientes = []
+                if nodo == "nodo_1_saludo":
+                    pendientes = ["saludo_y_verificar_titular"]
+                elif nodo == "nodo_2_pitch":
+                    pendientes = ["presentar_beneficios_platacard"]
+                elif nodo == "nodo_3_objecion":
+                    pendientes = ["manejar_objeciones_o_solicitar_codigo"]
+                else:
+                    pendientes = ["confirmar_nombre_y_transferir"]
+                    
+                state["pendientes"] = pendientes
+                state["detalles"] = f"Señales encontradas: {', '.join(completados)} | Pendientes: {', '.join(pendientes)}"
+                
+        except Exception as e:
+            logger.error(f"Error calculando el estado actual de la llamada: {e}")
+            
+        return state
+
+    async def _inject_current_state(self, session):
+        """Inyecta el estado actual de la llamada al agente de Gemini de forma silenciosa para el cliente."""
+        try:
+            state = self._get_current_call_state()
+            state_text = (
+                f"[SISTEMA - CONTROL DE ESTADO: Te encuentras en {state['nodo_actual']}. "
+                f"Datos recolectados: {', '.join(state['completados']) if state['completados'] else 'Ninguno'}. "
+                f"Pendientes: {', '.join(state['pendientes']) if state['pendientes'] else 'Ninguno'}. "
+                f"Detalles: {state['detalles']}]"
+            )
+            logger.info(f"📥 [State Control] Inyectando estado actual: {state_text}")
+            await session.send_realtime_input(text=state_text)
+        except Exception as e:
+            logger.error(f"Error inyectando estado actual: {e}")
 
     def fijar_estatus_final(self, estatus: str):
         """Herramienta llamada por Gemini para marcar el resultado de la llamada sin colgar."""
-        val_real = self.voice_cfg['vicidial_api'].get('status_map', {}).get(estatus, estatus)
+        val_real = (self.voice_cfg.get('vicidial_api') or {}).get('status_map', {}).get(estatus, estatus)
         self.final_disposition = val_real
         logger.warning(f"💾 [Estatus] Gemini fijó el resultado como: {estatus} ({val_real})")
         
@@ -588,6 +781,120 @@ class VoiceAgent:
             logger.error(f"Error _play_audio: {e}")
             self.session_active = False
 
+    async def _amex_sync_watchdog(self, session):
+        """Vigila los archivos de sincronización de AMEX e inyecta prompts al agente."""
+        logger.info("⏱️ [Watchdog AMEX] Inicializado.")
+        sync_dir = os.path.join(os.path.dirname(__file__), '..', 'tools', 'amex_sync')
+        
+        # Limpiar archivos residuales de sincronización al iniciar la llamada
+        if os.path.exists(sync_dir):
+            for f in os.listdir(sync_dir):
+                if f.endswith('.txt'):
+                    try:
+                        os.remove(os.path.join(sync_dir, f))
+                        logger.info(f"🧹 [Watchdog AMEX] Archivo residual eliminado: {f}")
+                    except Exception:
+                        pass
+        
+        while self.session_active:
+            try:
+                if not getattr(self, 'vicidial_incall', False):
+                    await asyncio.sleep(1)
+                    continue
+
+                if not os.path.exists(sync_dir):
+                    await asyncio.sleep(1)
+                    continue
+
+                for file_name in os.listdir(sync_dir):
+                    if file_name == "formulario_listo.txt":
+                        file_path = os.path.join(sync_dir, file_name)
+                        try:
+                            # Esperar a que el agente termine de hablar para evitar interrupciones (barge-in)
+                            while getattr(self, 'ai_speaking', False) or not self.audio_out_queue.empty():
+                                await asyncio.sleep(0.2)
+
+                            os.remove(file_path)
+                            await session.send_realtime_input(
+                                text="[SISTEMA: El formulario está totalmente lleno y listo para enviarse. Agradece al cliente, despídete y llama inmediatamente a la herramienta 'finalizar_venta_amex' para colgar y mandar los datos al banco.]"
+                            )
+                            logger.info("📥 [AMEX Sync] Inyectado prompt de formulario listo.")
+                        except Exception as e:
+                            pass
+
+            except Exception as e:
+                logger.error(f"Error en watchdog AMEX: {e}")
+            await asyncio.sleep(1)
+
+    def finalizar_venta_amex(self) -> str:
+        """Herramienta para que la IA finalice la llamada tras el saludo final de venta AMEX."""
+        logger.warning("📞 [AMEX] finalizar_venta_amex invocado. Colgando al cliente localmente...")
+        
+        # Guardar respaldo de los datos capturados
+        if getattr(self, 'amex_handler', None) and hasattr(self.amex_handler, '_datos'):
+            import json
+            import time
+            respaldo_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', 'amex', 'respaldo_ventas')
+            os.makedirs(respaldo_dir, exist_ok=True)
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            telefono = getattr(self, 'vicidial_phone', 'desconocido')
+            respaldo_path = os.path.join(respaldo_dir, f"venta_{telefono}_{timestamp}.json")
+            try:
+                with open(respaldo_path, 'w', encoding='utf-8') as f:
+                    json.dump(self.amex_handler._datos, f, ensure_ascii=False, indent=4)
+                logger.info(f"💾 [AMEX] Respaldo de datos de venta guardado en: {respaldo_path}")
+            except Exception as e:
+                logger.error(f"Error guardando respaldo de venta AMEX: {e}")
+        
+        self.final_disposition = 'SALE'
+        
+        # Colgar llamada al cliente
+        if self.execution_mode in ('produccion', 'pruebas') and hasattr(self.tools_dispatcher, 'api'):
+            api_cfg = self.tools_dispatcher.api
+            if api_cfg:
+                import threading
+                try:
+                    threading.Thread(target=api_cfg.external_hangup, daemon=True).start()
+                except Exception as e:
+                    logger.error(f"Error al colgar cliente en AMEX: {e}")
+        
+        # Escribir el archivo para que Selenium avance
+        sync_dir = os.path.join(os.path.dirname(__file__), '..', 'tools', 'amex_sync')
+        os.makedirs(sync_dir, exist_ok=True)
+        with open(os.path.join(sync_dir, 'call_ended.txt'), 'w', encoding='utf-8') as f:
+            f.write("true")
+            
+        # Programar el chequeo del resultado de AMEX
+        if hasattr(self, 'loop') and self.loop.is_running():
+            self.loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(self._wait_for_amex_apis())
+            )
+            
+        return "El proceso de colgado ha iniciado. El formulario se enviará en segundo plano."
+
+    async def _wait_for_amex_apis(self):
+        """Espera a que Selenium termine y envía el SALE a Vicidial."""
+        sync_dir = os.path.join(os.path.dirname(__file__), '..', 'tools', 'amex_sync')
+        done_file = os.path.join(sync_dir, 'proceso_finalizado.txt')
+        
+        logger.info("⏳ [AMEX] Esperando a que finalice el proceso de las APIs de AMEX (hasta 60s)...")
+        
+        for _ in range(60):
+            if os.path.exists(done_file):
+                break
+            await asyncio.sleep(1)
+            
+        logger.info("✅ [AMEX] Proceso AMEX terminado. Tipificando llamada en Vicidial como SALE.")
+        if self.execution_mode in ('produccion', 'pruebas') and hasattr(self.tools_dispatcher, 'api'):
+            api_cfg = self.tools_dispatcher.api
+            if api_cfg:
+                try:
+                    await asyncio.to_thread(api_cfg.external_status, 'SALE')
+                except Exception as e:
+                    logger.error(f"Error enviando SALE: {e}")
+                    
+        self.session_active = False
+
     async def _silence_watchdog(self, session):
         logger.info("⏱️ [Watchdog Silencio] Inicializado.")
         
@@ -621,23 +928,23 @@ class VoiceAgent:
                 now = asyncio.get_event_loop().time()
                 elapsed = now - getattr(self, 'last_client_speech_time', now)
 
-                # Paso 1: 7 segundos de silencio mutuo -> Primer aviso
-                if elapsed >= 7.0 and getattr(self, 'silence_warnings_sent', 0) == 0:
-                    logger.warning("⏱️ [Watchdog Silencio] 7s de silencio mutuo detectados. Enviando primer recordatorio al agente.")
+                # Paso 1: 12 segundos de silencio mutuo -> Primer aviso
+                if elapsed >= 12.0 and getattr(self, 'silence_warnings_sent', 0) == 0:
+                    logger.warning("⏱️ [Watchdog Silencio] 12s de silencio mutuo detectados. Enviando primer recordatorio al agente.")
                     self.silence_warnings_sent = 1
                     self.last_warning_sent_time = now
                     try:
                         await session.send_realtime_input(
-                            text="[SISTEMA: El cliente no ha respondido por 7 segundos. Pregúntale brevemente si sigue ahí, por ejemplo: '¿Hola? ¿Sigue ahí?' o '¿Me escucha?']"
+                            text="[SISTEMA: El cliente no ha respondido por 12 segundos. Pregúntale brevemente si sigue ahí, por ejemplo: '¿Hola? ¿Sigue ahí?' o '¿Me escucha?']"
                         )
                         if hasattr(self, 'call_transcript'):
                             self.call_transcript.append("[Sistema] Primer aviso de silencio enviado al agente.")
                     except Exception as se:
                         logger.error(f"Error enviando recordatorio 1: {se}")
 
-                # Paso 2: Otros 7 segundos (14s total) sin respuesta -> Colgar
-                elif getattr(self, 'silence_warnings_sent', 0) == 1 and (now - getattr(self, 'last_warning_sent_time', now)) >= 7.0:
-                    logger.warning("⏱️ [Watchdog Silencio] 14s de silencio mutuo continuo (7s tras aviso). Colgando por falta de respuesta...")
+                # Paso 2: Otros 12 segundos (24s total) sin respuesta -> Colgar
+                elif getattr(self, 'silence_warnings_sent', 0) == 1 and (now - getattr(self, 'last_warning_sent_time', now)) >= 12.0:
+                    logger.warning("⏱️ [Watchdog Silencio] 24s de silencio mutuo continuo (12s tras aviso). Colgando por falta de respuesta...")
                     
                     no_resp_status = self.voice_cfg.get('dispositions', {}).get('no_response', 'SINRSPT')
                     self.final_disposition = no_resp_status
@@ -699,19 +1006,12 @@ class VoiceAgent:
         vc = self.voice_cfg
         ai = vc.get('agent_instructions', {})
         
-        # Construcción del Prompt Modular
+        # Construcción del Prompt (Modular o Variable Única)
         personality = (
             f"IDIOMA: {vc.get('common_settings', {}).get('language', {}).get('name', 'Español')}. "
             f"ACENTO: {vc.get('common_settings', {}).get('accent', {}).get('description', '')}. "
             f"VOZ: {vc.get('voice', {}).get('name')}, tono {vc.get('emotion', {}).get('base_tone')}. "
         )
-        
-        role_block = ai.get('role', 'Eres un asistente.')
-        identity_rules = " ".join([f"- {r}" for r in ai.get('identity_rules', [])])
-        
-        # Flujo y Reglas
-        flow_block = json.dumps(ai.get('conversation_flow', {}), ensure_ascii=False)
-        rules_block = " ".join(ai.get('core_rules', []))
         
         pregrabados_block = ""
         # Desactivado por petición de usuario para usar voz directa en todos los modos
@@ -720,6 +1020,48 @@ class VoiceAgent:
         #     pregrabados_block = "AUDIOS PREGRABADOS DISPONIBLES (Usa 'reproducir_audio_pregrabado'): "
         #     for sid, info in available.items():
         #         pregrabados_block += f"'{sid}': \"{info['text'][:50]}...\"; "
+
+        if 'system_prompt' in ai:
+            prompt_content = ai['system_prompt']
+        elif 'prompt' in ai:
+            prompt_content = ai['prompt']
+        else:
+            role_block = ai.get('role', 'Eres un asistente.')
+            identity_rules = "\n".join([f"- {r}" for r in ai.get('identity_rules', [])])
+            
+            # Formatear el flujo de conversación de forma legible y limpia (soporta dict con script/description o strings simples)
+            flow_parts = []
+            for node_name, node_val in ai.get('conversation_flow', {}).items():
+                if isinstance(node_val, dict):
+                    desc = node_val.get('description', '')
+                    script = node_val.get('script', '')
+                    node_str = f"NODO {node_name.upper()}"
+                    if desc:
+                        node_str += f" ({desc})"
+                    node_str += f": {script}"
+                    for k, v in node_val.items():
+                        if k not in ('description', 'script'):
+                            node_str += f" | {k.upper()}: {v}"
+                    flow_parts.append(node_str)
+                else:
+                    flow_parts.append(f"NODO {node_name.upper()}: {node_val}")
+            flow_block = "\n".join(flow_parts)
+
+            rules_block = "\n".join([f"- {r}" for r in ai.get('core_rules', [])])
+            
+            # Formatear manejo de objeciones si existe
+            obj_parts = []
+            for obj_name, obj_val in ai.get('objection_handling', {}).items():
+                obj_parts.append(f"- OBJECIÓN {obj_name.upper()}: {obj_val}")
+            obj_block = "\n".join(obj_parts)
+
+            prompt_content = (
+                f"ROL:\n{role_block}\n\n"
+                f"IDENTIDAD:\n{identity_rules}\n\n"
+                f"FLUJO DE CONVERSACIÓN:\n{flow_block}\n\n"
+                f"MANEJO DE OBJECIONES:\n{obj_block}\n\n"
+                f"REGLAS DEL AGENTE:\n{rules_block}\n\n{pregrabados_block}"
+            )
         
         if self.campania_name == 'ventas_izzi':
             cierre_rules = (
@@ -761,7 +1103,7 @@ class VoiceAgent:
             "\n3. DOMICILIO OPCIONAL: Si el cliente no quiere dar su dirección o no la menciona, NO la solicites. Avanza al cierre sin ella."
             f"\n4. DETECCIÓN DE BUZÓN DE VOZ / CONTESTADORA: Si detectas que contestó una contestadora automática o buzón de voz (mensajes como 'deje su mensaje', 'presione la extensión', 'marque un número', 'apriete un número', 'deje un mensaje', 'el número que usted marcó', etc.), NO intentes interactuar ni dar tu pitch. Llama inmediatamente a la herramienta 'external_status' con el valor '{voicemail_status}' y después a 'external_hangup' para colgar."
         )
-        full_prompt = f"{personality} ROL: {role_block} IDENTIDAD: {identity_rules} FLUJO: {flow_block} REGLAS: {rules_block} {pregrabados_block}{system_rules_override}"
+        full_prompt = f"{personality} {prompt_content}{system_rules_override}"
         
         if self.voice_mode == 'grabacion':
             system_instruction = f"{personality} INSTRUCCIÓN: Di exactamente esta frase y nada más: {self.grabacion_frase}"
@@ -826,6 +1168,21 @@ class VoiceAgent:
                         api_cfg._status_called = False
                         api_cfg._pending_status = self.voice_cfg.get('dispositions', {}).get('default_pending', 'NZBUZ')
                 
+                if self.campania_name == 'amex':
+                    if hasattr(self, 'amex_handler') and self.amex_handler:
+                        self.amex_handler.client_phone = self.client_phone
+                        self.amex_handler.lead_id = self.client_lead_id if hasattr(self, 'client_lead_id') else ""
+                        vicidial_user = (self.voice_cfg.get('vicidial_api') or {}).get('phone_login')
+                        if vicidial_user:
+                            self.amex_handler.vicidial_user = vicidial_user
+                    
+                    sync_dir = os.path.join(os.path.dirname(__file__), '..', 'tools', 'amex_sync')
+                    os.makedirs(sync_dir, exist_ok=True)
+                    for f in os.listdir(sync_dir):
+                        if f.endswith('.txt'):
+                            try: os.remove(os.path.join(sync_dir, f))
+                            except: pass
+
                 # Iniciar grabador global para esta llamada/sesión
                 rec_cfg = self.voice_cfg.get('recording', {})
                 if rec_cfg.get('enabled') and self.execution_mode == 'local':
@@ -845,6 +1202,9 @@ class VoiceAgent:
                     async with SafeLiveConnection(self.client.aio.live.connect(model=model, config=config)) as session:
                         logger.info("✅ Conexión establecida con Gemini. Esperando llamada...")
                         
+                        if self.campania_name == 'amex':
+                            self.loop.create_task(self._amex_sync_watchdog(session))
+                            
                         if self.execution_mode == 'local':
                             if self.campania_name == 'ventas_izzi':
                                 greeting_phrase = "Buen día, ¿hablo con Aldair?"
@@ -967,6 +1327,9 @@ class VoiceAgent:
                                             self.client_cuenta = cuenta
                                             self.client_lead_id = lead_id_str
                                             self.last_client_lead_id = lead_id_str # Guardar el lead_id activo procesado
+                                            if self.campania_name == 'amex' and self.amex_handler:
+                                                self.amex_handler.client_phone = phone_number
+                                                self.amex_handler.lead_id = lead_id_str
                                             
                                             # Determinar el nombre de la compañía/marca para el mensaje del sistema
                                             if self.campania_name == 'ventas_izzi':
@@ -999,7 +1362,7 @@ class VoiceAgent:
                                                 
                                             self.client_name = f"{first_name} {last_name}".strip()
                                             
-                                            if self.campania_name in ['plata', 'amex']:
+                                            if self.campania_name in ['plata']:
                                                 # Enviar los datos del cliente de forma silenciosa para el contexto del agente, sin forzar la segunda frase de inmediato
                                                 is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
                                                 self.client_name = f"{first_name} {last_name}".strip() if is_valid_name else ""
@@ -1165,6 +1528,8 @@ class VoiceAgent:
                         logger.info("⏳ [Core] Esperando 2 segundos de seguridad antes de la siguiente conexión...")
                         await asyncio.sleep(2.0)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             logger.error(f"Error Crítico: {e}")
         finally:
             if hasattr(self, 'phantom') and self.phantom:
