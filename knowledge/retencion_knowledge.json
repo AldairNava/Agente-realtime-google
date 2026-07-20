@@ -36,6 +36,12 @@
     "escenario_cancelar_television": "Si el cliente desea cancelar solo la televisión para quedarse en 2P: 1) Intentar retenerlo ofreciendo mantener 3P bajando megas (PROMO RETE 3P). Si acepta -> RETENIDO. 2) Si insiste en quitar televisión, NO se le pueden dar promociones PROMO RETE 2P. Si acepta un paquete 2P Estándar -> NO RETENIDO.",
     "escenario_cancelar_todo_o_internet": "Si desea cancelar todo o internet: 1) Ofrecer reducciones de Megas con PROMO RETE respetando su producto (2P o 3P). Si acepta -> RETENIDO. 2) Si rechaza PROMO RETE pero acepta un 2P Estándar -> NO RETENIDO. 3) Si rechaza todo -> Dar folio de precancelación e instrucciones de devolución de equipos -> NO RETENIDO.",
     "escenario_fallas_tecnicas": "Aparte de ofrecer visita de técnico sin costo, ofrecer paquete menor de PROMO RETE para reducir el costo mientras se resuelve la falla.",
-    "regla_telefonia_integrada": "La telefonía fija NO se puede cancelar de forma individual ni por separado porque viene integrada sin costo adicional en el paquete de Internet (2P). Si el cliente solicita cancelar solo la telefonía, explícale que la línea telefónica viene incluida de regalo con el servicio de internet y no genera ningún cargo extra por mantenerse activa."
+    "regla_telefonia_integrada": "La telefonía fija NO se puede cancelar de forma individual ni por separado porque viene integrada sin costo adicional en el paquete de Internet (2P). Si el cliente solicita cancelar solo la telefonía, explícale que la línea telefónica viene incluida de regalo con el servicio de internet y no genera ningún cargo extra por mantenerse activa.",
+    "casos_especificos_retencion": {
+      "DATOS DE LA CUENTA": "Se utiliza para dar de alta un número telefónico para gestionar proceso de No Retenido o para agregar datos sobre una Visita Técnica.",
+      "PERFIL DE PAGO": "Se utiliza para generar la baja de la tarjeta de crédito/débito (TDC) con la cual se domicilió en algún momento el pago del servicio.",
+      "NAP SATURADO VALIDACION": "Caso administrativo para validar si es posible generar la instalación de un cambio de servicios.",
+      "INCONSISTENCIA": "Caso administrativo que se genera cuando la orden de servicios presenta alguna anomalía que no permite avanzar con el proceso."
+    }
   }
 }
