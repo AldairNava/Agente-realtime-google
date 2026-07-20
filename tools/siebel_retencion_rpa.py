@@ -293,7 +293,55 @@ def main_loop(driver):
     
     while True:
         try:
-            # 1. Definir rutas físicas de señales
+            # 0. Revisar si hay un archivo de pollution para Caso de Negocio
+            pollution_file = Path(r"C:\pollution\pollution_cte.txt")
+            if pollution_file.exists():
+                logger.info("🚨 Archivo pollution_cte.txt detectado. Procesando Caso de Negocio...")
+                content = pollution_file.read_text(encoding="utf-8").strip()
+                try:
+                    pollution_file.unlink() # Eliminar inmediatamente para evitar bucles
+                except Exception as e:
+                    logger.error(f"Error borrando pollution_cte.txt: {e}")
+                
+                parts = content.split("|")
+                if len(parts) >= 2:
+                    p_cuenta = parts[0].strip()
+                    p_tipo = parts[1].strip()
+                    
+                    # 1) Buscar la cuenta en Siebel
+                    bucleEncuentraItemsClick(driver, xpath_btn_consulta)
+                    time.sleep(1)
+                    inp = bucleEncuentraItems(driver, xpath_input_cuenta)
+                    if inp:
+                        inp.clear()
+                        inp.send_keys(p_cuenta)
+                        inp.send_keys(Keys.RETURN)
+                        logger.info(f"🚀 Consulta de Cuenta ({p_cuenta}) para Caso de Negocio ({p_tipo}) enviada.")
+                        time.sleep(5)
+                        
+                        # 2) Llenar y cerrar CN
+                        try:
+                            from tools.siebel_casos_negocio import llenar_y_cerrar_CN
+                            exito = llenar_y_cerrar_CN(driver, p_tipo)
+                            if not exito:
+                                logger.error("No se pudo generar/cerrar el Caso de Negocio.")
+                        except Exception as e:
+                            logger.error(f"Error ejecutando llenar_y_cerrar_CN: {e}")
+                        
+                        # 3) Regresar a Home y Consulta para resetear el estado
+                        home_tab = bucleEncuentraItemsLong(driver, xpath_home_tab)
+                        if home_tab:
+                            driver.execute_script("arguments[0].click();", home_tab)
+                            time.sleep(3)
+                            menu_tab = bucleEncuentraItemsLong(driver, xpath_pantalla_unica)
+                            if menu_tab:
+                                driver.execute_script("arguments[0].click();", menu_tab)
+                            time.sleep(3)
+                        continue # Salta a la siguiente iteración del while
+                else:
+                    logger.error(f"Formato inválido en pollution_cte.txt: {content}")
+
+            # 1. Definir rutas físicas de señales normales
             cuenta_file = SIGNALS_DIR / "cuenta.txt"
             tel_file = SIGNALS_DIR / "tel.txt"
             nombre_file = SIGNALS_DIR / "nombre.txt"

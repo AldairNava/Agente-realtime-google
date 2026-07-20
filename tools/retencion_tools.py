@@ -43,6 +43,22 @@ def _write_signal(filename: str, content: str) -> dict:
         return {"status": "error", "message": str(e)}
 
 
+def _write_pollution(cuenta: str, tipo_caso: str) -> dict:
+    """Escribe un archivo de señal para el RPA de Pollution (Generación de Casos de Negocio en Siebel)."""
+    try:
+        pollution_dir = Path(r"C:\pollution")
+        pollution_dir.mkdir(parents=True, exist_ok=True)
+        signal_path = pollution_dir / "pollution_cte.txt"
+        
+        # Formato: cuenta|tipo_caso
+        content = f"{cuenta}|{tipo_caso}"
+        signal_path.write_text(content, encoding="utf-8")
+        logger.info(f"📤 [RetencionTools] Archivo pollution_cte.txt escrito en C:\\pollution: {content}")
+        return {"status": "ok", "signal": "pollution_cte.txt", "value": content}
+    except Exception as e:
+        logger.error(f"❌ [RetencionTools] Error escribiendo pollution_cte.txt: {e}")
+        return {"status": "error", "message": str(e)}
+
 # ---------------------------------------------------------------------------
 # Tools públicas (registradas en el agente)
 # ---------------------------------------------------------------------------
@@ -192,6 +208,25 @@ def obtener_datos_cliente() -> dict:
     except Exception as e:
         logger.error(f"❌ [RetencionTools] Error leyendo datos_cliente.json: {e}")
         return {"status": "error", "message": str(e)}
+
+
+def generar_caso_negocio_siebel(cuenta: str, tipo_caso: str) -> dict:
+    """
+    Genera un caso de negocio automático en Siebel a través del RPA.
+    
+    Args:
+        cuenta: Número de cuenta del cliente (ej. "90175351").
+        tipo_caso: Tipo de caso a generar ('INFO GENERAL DEL SERV', 'TRANSFERENCIA', 'RETENIDO', 'NO RETENIDO', etc.).
+    
+    Returns:
+        dict con status "ok" o "error".
+    """
+    if not cuenta or not str(cuenta).strip():
+        return {"status": "error", "message": "El número de cuenta no puede estar vacío."}
+    if not tipo_caso or not str(tipo_caso).strip():
+        return {"status": "error", "message": "El tipo de caso no puede estar vacío."}
+    
+    return _write_pollution(str(cuenta).strip(), str(tipo_caso).strip())
 
 
 # ---------------------------------------------------------------------------
@@ -372,4 +407,29 @@ TOOL_DEFINITIONS = [
         },
         "fn": obtener_datos_cliente,
     },
+    {
+        "name": "generar_caso_negocio_siebel",
+        "description": (
+            "Genera un caso de negocio automático en Siebel para documentar la interacción. "
+            "Úsala cuando el cliente solo pide información general (tipo_caso='INFO GENERAL DEL SERV'), "
+            "o cuando solicita cancelación de servicios adicionales o tiene fallas y debe ser redirigido a soporte (tipo_caso='TRANSFERENCIA'). "
+            "Requiere que tengas el número de cuenta."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "cuenta": {
+                    "type": "string",
+                    "description": "Número de cuenta del cliente."
+                },
+                "tipo_caso": {
+                    "type": "string",
+                    "description": "Tipo de caso. Opciones comunes: 'INFO GENERAL DEL SERV', 'TRANSFERENCIA'."
+                }
+            },
+            "required": ["cuenta", "tipo_caso"]
+        },
+        "fn": generar_caso_negocio_siebel,
+    },
 ]
+

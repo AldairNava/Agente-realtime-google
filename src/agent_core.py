@@ -1451,6 +1451,15 @@ class VoiceAgent:
                                         status_opts = self.voice_cfg.get('dispositions', {})
                                         fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
                                     logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
+                                    
+                                    if self.campania_name == 'retencion' and getattr(self, 'client_cuenta', None):
+                                        logger.warning(f"⚠️ [Core] Llamada de retención cortada abruptamente (cuenta {self.client_cuenta}). Registrando 'SE CORTA LLAMADA'.")
+                                        from tools.retencion_tools import _write_pollution
+                                        try:
+                                            await asyncio.to_thread(_write_pollution, self.client_cuenta, "SE CORTA LLAMADA")
+                                        except Exception as e:
+                                            logger.error(f"Error escribiendo SE CORTA LLAMADA: {e}")
+
                                     await asyncio.to_thread(api_cfg.external_status, fallback_status)
                                     await asyncio.to_thread(api_cfg.external_hangup)
 
