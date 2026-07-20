@@ -1,0 +1,40 @@
+{
+  "tarifas_estandar": {
+    "residencial": {
+      "60MB_100_canales": { "2P": 389, "3P": 539 },
+      "80MB_100_canales": { "2P": 480, "3P": 630 },
+      "100MB_200_canales": { "2P": 540, "3P": 720 },
+      "120MB_200_canales": { "2P": 570, "3P": 750 },
+      "150MB_200_canales": { "2P": 640, "3P": 820 },
+      "200MB_200_canales": { "2P": 700, "3P": 880 },
+      "500MB_200_canales": { "2P": 820, "3P": 1000 },
+      "1000MB_200_canales": { "2P": 1020, "3P": 1200 }
+    },
+    "negocios": {
+      "80MB": { "2P": 530, "3P": 710 },
+      "100MB": { "2P": 590, "3P": 770 },
+      "120MB": { "2P": 620, "3P": 800 },
+      "150MB": { "2P": 690, "3P": 870 },
+      "200MB": { "2P": 750, "3P": 930 },
+      "500MB": { "2P": 870, "3P": 1050 },
+      "1000MB": { "2P": 1070, "3P": 1250 }
+    }
+  },
+  "promo_rete_exclusivas": {
+    "60MB_menor_1_ano": { "2P": 329, "3P": 470, "aplica": "Clientes con antigüedad menor a 1 año" },
+    "80MB": { "2P": 380, "3P": 530, "aplica": "Recomendado para clientes de 100M y Cero" },
+    "100MB": { "2P": 429, "3P": 609, "aplica": "Promoción intermedia" },
+    "150MB": { "2P": 500, "3P": 650, "aplica": "Recomendado para clientes de 100M y Cero" }
+  },
+  "reglas_negocio_retencion": {
+    "definicion_paquetes": {
+      "2P": "Doble Play (Internet + Telefonía)",
+      "3P": "Triple Play (Internet + Telefonía + Televisión izzi TV)"
+    },
+    "regla_respeto_producto": "Se debe respetar la modalidad que el cliente tiene actualmente (2P o 3P) reduciendo únicamente la velocidad de Megas para ofrecer un costo menor. La PRIMERA opción a ofrecer siempre debe ser de la tabla PROMO RETE.",
+    "escenario_servicios_adicionales": "Si el cliente quiere cancelar únicamente un servicio adicional (Netflix, HBO, ViX, etc.), NO aplica oferta de retención. Se trata como POLLUTION con caso TRANSFERENCIA indicándole marcar a soporte.",
+    "escenario_cancelar_television": "Si el cliente desea cancelar solo la televisión para quedarse en 2P: 1) Intentar retenerlo ofreciendo mantener 3P bajando megas (PROMO RETE 3P). Si acepta -> RETENIDO. 2) Si insiste en quitar televisión, NO se le pueden dar promociones PROMO RETE 2P. Si acepta un paquete 2P Estándar -> NO RETENIDO.",
+    "escenario_cancelar_todo_o_internet": "Si desea cancelar todo o internet: 1) Ofrecer reducciones de Megas con PROMO RETE respetando su producto (2P o 3P). Si acepta -> RETENIDO. 2) Si rechaza PROMO RETE pero acepta un 2P Estándar -> NO RETENIDO. 3) Si rechaza todo -> Dar folio de precancelación e instrucciones de devolución de equipos -> NO RETENIDO.",
+    "escenario_fallas_tecnicas": "Aparte de ofrecer visita de técnico sin costo, ofrecer paquete menor de PROMO RETE para reducir el costo mientras se resuelve la falla."
+  }
+}
