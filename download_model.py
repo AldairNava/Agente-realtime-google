@@ -13,10 +13,12 @@ def download_silero():
         return True
 
     urls = [
+        "https://raw.githubusercontent.com/snakers4/silero-vad/v4.0/files/silero_vad.jit",
+        "https://github.com/snakers4/silero-vad/raw/v4.0/files/silero_vad.jit",
+        "https://raw.githubusercontent.com/snakers4/silero-vad/master/src/silero_vad/data/silero_vad.jit",
+        "https://raw.githubusercontent.com/snakers4/silero-vad/main/src/silero_vad/data/silero_vad.jit",
         "https://raw.githubusercontent.com/snakers4/silero-vad/main/files/silero_vad.jit",
-        "https://raw.githubusercontent.com/snakers4/silero-vad/master/files/silero_vad.jit",
-        "https://github.com/snakers4/silero-vad/raw/main/files/silero_vad.jit",
-        "https://github.com/snakers4/silero-vad/raw/master/files/silero_vad.jit"
+        "https://raw.githubusercontent.com/snakers4/silero-vad/master/files/silero_vad.jit"
     ]
     
     for url in urls:
