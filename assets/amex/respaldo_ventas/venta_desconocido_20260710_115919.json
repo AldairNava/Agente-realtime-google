@@ -1,0 +1,19 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc": "si",
+    "tiene_auto": "no",
+    "tiene_hipoteca": "no",
+    "buro_credito_limpio": "si",
+    "es_pfae": "no",
+    "tipo_persona": "fisica",
+    "nombre": "Luis Aldair Ronaldo",
+    "apellido_paterno": "Martínez",
+    "apellido_materno": "Hernández",
+    "dia_nacimiento": "21",
+    "mes_nacimiento": "septiembre",
+    "anio_nacimiento": "2001",
+    "rfc": "MAHL010921TZ4",
+    "email": "aldair.h@gmail.com",
+    "celular": "5583933653",
+    "codigo_postal": "57710"
+}

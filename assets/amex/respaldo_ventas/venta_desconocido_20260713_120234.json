@@ -1,0 +1,19 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc": "si",
+    "tiene_auto": "no",
+    "tiene_hipoteca": "no",
+    "buro_credito_limpio": "si",
+    "es_pfae": "no",
+    "tipo_persona": "fisica",
+    "nombre": "Eric Felipe",
+    "apellido_paterno": "García",
+    "apellido_materno": "Cuevas",
+    "dia_nacimiento": "22",
+    "mes_nacimiento": "abril",
+    "anio_nacimiento": "1994",
+    "rfc": "GACE940422RK1",
+    "email": "ericpp22@outlook.com",
+    "celular": "5584268222",
+    "codigo_postal": "09790"
+}

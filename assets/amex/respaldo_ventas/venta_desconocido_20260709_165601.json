@@ -1,0 +1,18 @@
+{
+    "es_cliente_amex": "no",
+    "banco_actual": "Bancomer",
+    "pagos_regulares": "si",
+    "buro_credito_limpio": "si",
+    "es_pfae": "no",
+    "nombre": "David Alberto",
+    "apellido_paterno": "Martins",
+    "apellido_materno": "Martins",
+    "dia_nacimiento": "25",
+    "mes_nacimiento": "mayo",
+    "anio_nacimiento": "1992",
+    "rfc": "MAMD9205251AA",
+    "email": "aldairnava.z@gmail.com",
+    "celular": "5583935383",
+    "codigo_postal": "55120",
+    "tiene_tdc": "si"
+}

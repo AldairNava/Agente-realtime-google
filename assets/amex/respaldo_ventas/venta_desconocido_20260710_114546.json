@@ -1,0 +1,21 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc": "si",
+    "tiene_auto": "si",
+    "tiene_hipoteca": "si",
+    "buro_credito_limpio": "si",
+    "pagos_regulares": "si",
+    "es_pfae": "no",
+    "tipo_persona": "fisica",
+    "id_tarjeta": "amex_aeromexico",
+    "nombre": "Neymar Ronaldo Aldair",
+    "apellido_paterno": "Mónaco",
+    "apellido_materno": "Hernández",
+    "dia_nacimiento": "17",
+    "mes_nacimiento": "marzo",
+    "anio_nacimiento": "1994",
+    "rfc": "MOHN940317BN8",
+    "email": "aldair.h@gmail.com",
+    "celular": "5583963353",
+    "codigo_postal": "57710"
+}

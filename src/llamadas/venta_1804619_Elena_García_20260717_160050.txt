@@ -1,0 +1,20 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc": "si",
+    "tiene_auto": "no",
+    "tiene_hipoteca": "no",
+    "pagos_regulares": "si",
+    "buro_credito_limpio": "si",
+    "es_pfae": "no",
+    "tipo_persona": "fisica",
+    "nombre": "Elena",
+    "apellido_paterno": "García",
+    "apellido_materno": "Fernández",
+    "dia_nacimiento": "12",
+    "mes_nacimiento": "octubre",
+    "anio_nacimiento": "1985",
+    "rfc": "GAFE851012DBA",
+    "email": "elenamartinez85@gmail.com",
+    "celular": "5520304050",
+    "codigo_postal": "85320"
+}

@@ -1,0 +1,74 @@
+[
+  {
+    "nombre_tarjeta": "La Tarjeta American Express",
+    "id_sistema": "amex_personal",
+    "ingreso_minimo_mensual": 15000,
+    "cashback": "Obtén $2,000 M.N. al adquirir La Tarjeta.",
+    "bono_amazon": "Certificado Amazon de $2,000 MXN al acumular gasto mínimo de $30k en 3 meses.",
+    "beneficios": "Sin costo el 1er año (2do año $160 USD+IVA a 3 MSI), asistencia médica/legal en viajes, acumula Puntos Membership Rewards, Seguro Automático contra Accidentes en Viajes, hasta 5 Tarjetas Adicionales sin costo."
+  },
+  {
+    "nombre_tarjeta": "La Tarjeta American Express Aeromexico",
+    "id_sistema": "amex_aeromexico",
+    "ingreso_minimo_mensual": 15000,
+    "cashback": "$5,000 M.N. en Estado de Cuenta + 9,600 Puntos Aeroméxico Rewards.",
+    "bono_amazon": "Certificado Amazon de $1,500 MXN al acumular gasto mínimo de $70k en 3 meses.",
+    "beneficios": "Sin Costo Anual el 1er año (2do año $160 USD+IVA a 3 MSI), hasta 5 Adicionales sin costo, Boleto Aeroméxico Rewards 2X1 acompañante, Seguro robo autos rentados, $1,300 M.N. bonificación Starbucks, Protección Pérdida Equipaje."
+  },
+  {
+    "nombre_tarjeta": "The Platinum Credit Card",
+    "id_sistema": "platinum_credit",
+    "ingreso_minimo_mensual": 30000,
+    "cashback": "$8,000 M.N. (+$2,000 M.N. si contrata seguro protección artículos).",
+    "bono_amazon": "Certificado Amazon de $4,000 MXN al acumular gasto mínimo de $60k en 3 meses.",
+    "beneficios": "Sin costo 1er año (2do año $3,700 M.N. + IVA a 3 MSI), Acceso Salas Priority Pass, 3 MSI compras >$6,000, 10% descuento PriceTravel, $500 M.N. bonificación walmart.com.mx."
+  },
+  {
+    "nombre_tarjeta": "The Gold Card",
+    "id_sistema": "gold_card",
+    "ingreso_minimo_mensual": 40000,
+    "cashback": "$8,000 M.N.",
+    "bono_amazon": "Certificado Amazon de $8,000 MXN al acumular gasto mínimo de $100k en 3 meses.",
+    "beneficios": "Cuota Anual $450 USD+IVA a 3 MSI, hasta 10 accesos PriorityPass, hasta $3,000 bonificación Amex Viajes, bonificaciones 100% compras supermercados hasta $3,000, bono aniversario $3,000 M.N. al reservar en Amex Viajes."
+  },
+  {
+    "nombre_tarjeta": "The Gold Card Aeromexico",
+    "id_sistema": "gold_aeromexico",
+    "ingreso_minimo_mensual": 40000,
+    "cashback": "$8,000 M.N. en Edo cuenta + 16,000 Puntos Aeroméxico Rewards.",
+    "bono_amazon": "Certificado Amazon de $4,000 MXN al acumular gasto mínimo de $120k en 3 meses.",
+    "beneficios": "Cuota anual $450 USD+IVA a 3 MSI, hasta 3 Adicionales sin costo, hasta $2,000 Cashback Restaurantes, Boleto 2X1 acompañante, Nivel Oro Aeroméxico, Seguro robo autos rentados."
+  },
+  {
+    "nombre_tarjeta": "The Platinum Card Aeromexico",
+    "id_sistema": "platinum_aeromexico",
+    "ingreso_minimo_mensual": 80000,
+    "cashback": "$40,000 M.N. en Edo Cuenta + 32,000 Puntos Aeroméxico Rewards.",
+    "bono_amazon": "Certificado Amazon de $20,000 MXN al acumular gasto mínimo de $320k en 3 meses.",
+    "beneficios": "Cuota Anual $1,300 USD+IVA a 3 MSI, Boletos 2x1, Acceso The Centurion Lounge, $10,000 bonificación compras Aeroméxico mayores a $30,000, 3 adicionales sin costo, hasta $4,000 bonificación restaurantes."
+  },
+  {
+    "nombre_tarjeta": "The Platinum Card",
+    "id_sistema": "platinum_card",
+    "ingreso_minimo_mensual": 100000,
+    "cashback": "$40,000 M.N.",
+    "bono_amazon": "Certificado Amazon de $25,000 MXN al acumular gasto mínimo de $300k en 3 meses.",
+    "beneficios": "Cuota Anual $1,300 USD+IVA a 3 MSI, Servicio Premium 24/7, $8,000 bonificación restaurantes, 2X1 en vuelos, acceso a 1,200 Salas VIP aeropuertos, Puntos Membership Rewards, Cobertura emergencia médica viaje $100k USD, hasta 2 Adicionales sin costo."
+  },
+  {
+    "nombre_tarjeta": "The Business Gold Card",
+    "id_sistema": "business_gold",
+    "ingreso_minimo_mensual": 40000,
+    "cashback": "$10,000 M.N.",
+    "bono_amazon": "No aplica bono de Amazon para tarjetas Business.",
+    "beneficios": "Cuota anual $500 USD+IVA a 3 MSI, $2,000 bonificación compras Negocio, $2,000 bonificación publicidad/mensajería, $6,000 bonificación viajes de negocios, 50 días financiamiento sin intereses, Puntos Membership Rewards, hasta 5 Adicionales sin costo."
+  },
+  {
+    "nombre_tarjeta": "The Business Platinum Card",
+    "id_sistema": "business_platinum",
+    "ingreso_minimo_mensual": 100000,
+    "cashback": "$25,000 M.N.",
+    "bono_amazon": "No aplica bono de Amazon para tarjetas Business.",
+    "beneficios": "Cuota Anual $1,300 USD+IVA a 3 MSI, sin límite preestablecido de gasto, hasta 5 Adicionales sin costo, $5,000 bonificación compras Negocio, $5,000 publicidad/mensajería, $30,000 MXN bonificación en Amex Viajes, 50 días financiamiento."
+  }
+]

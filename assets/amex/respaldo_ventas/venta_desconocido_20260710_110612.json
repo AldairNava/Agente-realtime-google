@@ -1,0 +1,23 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc": "si",
+    "tiene_auto": "no",
+    "tiene_hipoteca": "no",
+    "pagos_regulares": "si",
+    "buro_credito_limpio": "si",
+    "tipo_persona": "fisica",
+    "es_pfae": "no",
+    "id_tarjeta_solicitada": "amex_aeromexico",
+    "nombre": "Aldair",
+    "apellido_paterno": "Hernández",
+    "apellido_materno": "Martínez",
+    "dia_nacimiento": "21",
+    "mes_nacimiento": "septiembre",
+    "anio_nacimiento": "1991",
+    "email": "aldairh.este@gmail.com",
+    "correo_electronico": "aldair.h@gmail.com",
+    "celular": "555883935383",
+    "telefono_celular": "555883935383",
+    "codigo_postal": "57710",
+    "rfc": "HEMA910921N51"
+}

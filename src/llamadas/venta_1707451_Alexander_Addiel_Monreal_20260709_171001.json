@@ -1,0 +1,20 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc_vigente": "si",
+    "pagos_regulares": "si",
+    "buro_limpio": "si",
+    "es_pfae": "no",
+    "nombre": "Alexander Addiel",
+    "apellido_paterno": "Monreal",
+    "apellido_materno": "Martínez",
+    "dia_nacimiento": "21",
+    "mes_nacimiento": "mayo",
+    "anio_nacimiento": "1930",
+    "rfc": "MOMA300521D58",
+    "email": "martinez.garcia.1@arroyomolinos.es",
+    "celular": "5512345678",
+    "codigo_postal": "06000",
+    "tiene_tdc": "si",
+    "tiene_auto": "si",
+    "tiene_hipoteca": "no"
+}

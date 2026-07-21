@@ -1,0 +1,15 @@
+{
+    "nombre": "Aldair",
+    "apellido_paterno": "Nava",
+    "apellido_materno": "Martínez",
+    "dia_nacimiento": "21",
+    "mes_nacimiento": "mayo",
+    "anio_nacimiento": "1991",
+    "rfc": "NAMA9105219U7",
+    "email": "prueba@gmail.com",
+    "celular": "5512345678",
+    "codigo_postal": "11000",
+    "tiene_tdc": "si",
+    "tiene_auto": "no",
+    "tiene_hipoteca": "no"
+}

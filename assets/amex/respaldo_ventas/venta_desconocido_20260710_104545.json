@@ -1,0 +1,22 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc_antiguedad": "si",
+    "pagos_regulares": "si",
+    "buro_credito_limpio": "si",
+    "es_pfae": "no",
+    "id_tarjeta_amex": "amex_aeromexico",
+    "nombre": "Aldair",
+    "apellido_paterno": "Marcos",
+    "apellido_materno": "Martínez",
+    "dia_nacimiento": "24",
+    "mes_nacimiento": "septiembre",
+    "anio_nacimiento": "1996",
+    "codigo_postal": "57710",
+    "rfc": "MAMA960924RP7",
+    "tipo_persona": "fisica",
+    "email": "aldair.h@gmail.com",
+    "celular": "55583933353",
+    "tiene_tdc": "si",
+    "tiene_auto": "no",
+    "tiene_hipoteca": "no"
+}

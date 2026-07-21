@@ -1,0 +1,20 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc": "si",
+    "tiene_auto": "no",
+    "tiene_hipoteca": "no",
+    "pagos_regulares": "si",
+    "buro_credito_limpio": "si",
+    "es_pfae": "no",
+    "tipo_persona": "fisica",
+    "nombre": "Brandon Aldair",
+    "apellido_paterno": "Nava",
+    "apellido_materno": "Márquez",
+    "dia_nacimiento": "21",
+    "mes_nacimiento": "mayo",
+    "anio_nacimiento": "1999",
+    "rfc": "NAMB990521BX9",
+    "email": "aldair.nava@gmail.com",
+    "celular": "5582264652",
+    "codigo_postal": "55370"
+}
