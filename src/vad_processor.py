@@ -22,12 +22,20 @@ class VADProcessor:
         local_model_path = os.path.join(os.path.dirname(__file__), "resources", "silero_vad.jit")
         
         try:
+            if not os.path.exists(local_model_path):
+                logger.info("Intentando descargar silero_vad.jit automáticamente...")
+                try:
+                    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+                    from download_model import download_silero
+                    download_silero()
+                except Exception as dl_err:
+                    logger.warning(f"No se pudo descargar automáticamente silero_vad.jit: {dl_err}")
+
             if os.path.exists(local_model_path):
                 logger.info(f"Cargando Silero VAD localmente desde: {local_model_path}")
                 self.model = torch.jit.load(local_model_path)
             else:
                 logger.warning(f"Modelo local no encontrado en {local_model_path}. Intentando descargar vía torch.hub...")
-                # Estado del Arte: Ignora teclados y ruido de fondo de Call Center
                 self.model, utils = torch.hub.load(
                     repo_or_dir='snakers4/silero-vad',
                     model='silero_vad',
