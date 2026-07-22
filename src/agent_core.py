@@ -1133,6 +1133,14 @@ class VoiceAgent:
             asyncio.create_task(self._time_watchdog())
         try:
             while self.agent_running:
+                # Esperar a que el colgado de la llamada anterior finalice por completo antes de iniciar la nueva sesión
+                if self.execution_mode in ('produccion', 'pruebas'):
+                    api_cfg = self.tools_dispatcher.api
+                    if api_cfg:
+                        while getattr(api_cfg, 'hangup_in_progress', False):
+                            logger.info("⏳ [Core] Esperando a que el colgado de la llamada anterior finalice por completo...")
+                            await asyncio.sleep(1.0)
+                            
                 self.session_active = True
                 self.vicidial_incall = True if self.execution_mode == 'local' else False
                 self.client_name = "Aldair Nava Marquez" if self.execution_mode == 'local' else ""

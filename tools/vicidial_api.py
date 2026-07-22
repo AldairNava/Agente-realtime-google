@@ -26,6 +26,7 @@ class VicidialAPI:
         # Bandera para rastrear si se llamó a external_status
         self._status_called = False
         self.call_hungup_sent = False
+        self.hangup_in_progress = False
         self._pending_status = None
         self.last_status_sent = "SIN_ESTATUS"
         self.phantom = None
@@ -91,43 +92,46 @@ class VicidialAPI:
             logger.info("🛑 [VicidialAPI] external_hangup already called, skipping duplicate.")
             return "SUCCESS: already hung up"
         self.call_hungup_sent = True
+        self.hangup_in_progress = True
         
-        # Guardar de inmediato la copia local de la tipificación pendiente ANTES de cualquier sleep para evitar condiciones de carrera
-        status_to_send = self._pending_status if self._pending_status else "NI"
-        
-        # Esperar 22 segundos obligatorios al inicio para dar margen de seguridad (por ejemplo, para que terminen las despedidas)
-        import time
-        logger.info(f"⏳ [VicidialAPI] Esperando 22 segundos obligatorios al inicio de external_hangup (Tipificación guardada localmente: {status_to_send})...")
-        time.sleep(22.0)
-        
-        # 1. Colgar la llamada inmediatamente
-        logger.info("🛑 [VicidialAPI] Ejecutando colgado de canal (external_hangup)...")
-        res_hangup = self._call_api("external_hangup", {"value": "1"})
-        
-        # 1.1 Ejecutar fallback directo en el navegador si está disponible para asegurar el colgado físico
-        if getattr(self, 'phantom', None):
-            try:
-                self.phantom.hangup_call_browser()
-            except Exception as pe:
-                logger.error(f"Error en fallback de colgado en navegador: {pe}")
-        
-        # 2. Esperar obligatoriamente 3 segundos a que cargue la pantalla de disposición de Vicidial
-        import time
-        logger.info("⏳ [VicidialAPI] Esperando 3 segundos en pantalla de disposición antes de tipificar...")
-        time.sleep(3.0)
-        
-        # 3. Aplicar la tipificación guardada (o fallback "NI")
-        logger.warning(f"💾 [VicidialAPI] Enviando tipificación de cierre: {status_to_send}")
-        self.last_status_sent = status_to_send
-        
-        # Llamar a la API real de external_status
-        res_status = self._call_api("external_status", {"value": status_to_send})
-        
-        # Limpiar variables para la siguiente llamada
-        self._pending_status = None
-        self._status_called = False
-        
-        return f"{res_hangup} | {res_status}"
+        try:
+            # Esperar 22 segundos obligatorios al inicio para dar margen de seguridad (por ejemplo, para que terminen las despedidas)
+            import time
+            logger.info("⏳ [VicidialAPI] Esperando 22 segundos obligatorios al inicio de external_hangup...")
+            time.sleep(22.0)
+            
+            # 1. Colgar la llamada inmediatamente
+            logger.info("🛑 [VicidialAPI] Ejecutando colgado de canal (external_hangup)...")
+            res_hangup = self._call_api("external_hangup", {"value": "1"})
+            
+            # 1.1 Ejecutar fallback directo en el navegador si está disponible para asegurar el colgado físico
+            if getattr(self, 'phantom', None):
+                try:
+                    self.phantom.hangup_call_browser()
+                except Exception as pe:
+                    logger.error(f"Error en fallback de colgado en navegador: {pe}")
+            
+            # 2. Esperar obligatoriamente 3 segundos a que cargue la pantalla de disposición de Vicidial
+            import time
+            logger.info("⏳ [VicidialAPI] Esperando 3 segundos en pantalla de disposición antes de tipificar...")
+            time.sleep(3.0)
+            
+            # 3. Aplicar la tipificación guardada (o fallback "NI")
+            status_to_send = self._pending_status if self._pending_status else "NI"
+            logger.warning(f"💾 [VicidialAPI] Enviando tipificación de cierre: {status_to_send}")
+            self.last_status_sent = status_to_send
+            
+            # Llamar a la API real de external_status
+            res_status = self._call_api("external_status", {"value": status_to_send})
+            
+            # Limpiar variables para la siguiente llamada
+            self._pending_status = None
+            self._status_called = False
+            
+            return f"{res_hangup} | {res_status}"
+        finally:
+            self.hangup_in_progress = False
+            self.call_hungup_sent = False
 
     def external_status(self, status: str):
         """Guarda la tipificación elegida por el agente de forma diferida."""
