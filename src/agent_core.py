@@ -810,15 +810,8 @@ class VoiceAgent:
                     if file_name == "formulario_listo.txt":
                         file_path = os.path.join(sync_dir, file_name)
                         try:
-                            # Esperar a que el agente termine de hablar para evitar interrupciones (barge-in)
-                            while getattr(self, 'ai_speaking', False) or not self.audio_out_queue.empty():
-                                await asyncio.sleep(0.2)
-
                             os.remove(file_path)
-                            await session.send_realtime_input(
-                                text="[SISTEMA: El formulario está totalmente lleno y listo para enviarse. Agradece al cliente, despídete y llama inmediatamente a la herramienta 'finalizar_venta_amex' para colgar y mandar los datos al banco.]"
-                            )
-                            logger.info("📥 [AMEX Sync] Inyectado prompt de formulario listo.")
+                            logger.info("📥 [AMEX Sync] Formulario listo detectado. Se omite inyección de texto en tiempo real.")
                         except Exception as e:
                             pass
 
