@@ -92,13 +92,13 @@ class VicidialAPI:
             return "SUCCESS: already hung up"
         self.call_hungup_sent = True
         
+        # Guardar de inmediato la copia local de la tipificación pendiente ANTES de cualquier sleep para evitar condiciones de carrera
+        status_to_send = self._pending_status if self._pending_status else "NI"
+        
         # Esperar 8 segundos obligatorios al inicio para dar margen de seguridad (por ejemplo, para que terminen las despedidas)
         import time
-        logger.info("⏳ [VicidialAPI] Esperando 8 segundos obligatorios al inicio de external_hangup...")
+        logger.info(f"⏳ [VicidialAPI] Esperando 8 segundos obligatorios al inicio de external_hangup (Tipificación guardada localmente: {status_to_send})...")
         time.sleep(8.0)
-        
-        # Guardar una copia local del status antes de dormir para evitar condiciones de carrera
-        status_to_send = self._pending_status if self._pending_status else "NI"
         
         # 1. Colgar la llamada inmediatamente
         logger.info("🛑 [VicidialAPI] Ejecutando colgado de canal (external_hangup)...")
