@@ -517,6 +517,72 @@ class VoiceAgent:
         logger.info("⏳ [Watchdog] Desactivado watchdog de base de datos asterisk.")
         return
 
+    async def _network_watchdog(self):
+        """Monitorea la conectividad de red con el servidor Vicidial para detectar micro-cortes."""
+        api_cfg = getattr(self, 'tools_dispatcher', None) and getattr(self.tools_dispatcher, 'api', None)
+        if not api_cfg or not getattr(api_cfg, 'url', None):
+            logger.info("📡 [Watchdog Red] Sin configuración de API de Vicidial. Monitoreo omitido.")
+            return
+
+        from urllib.parse import urlparse
+        import socket
+        
+        try:
+            parsed_url = urlparse(api_cfg.url)
+            host = parsed_url.hostname
+            port = parsed_url.port or (443 if parsed_url.scheme == 'https' else 80)
+        except Exception as e:
+            logger.error(f"📡 [Watchdog Red] Error al parsear URL de Vicidial: {e}")
+            return
+
+        logger.info(f"📡 [Watchdog Red] Monitoreando conectividad con el servidor {host}:{port} cada 5 segundos...")
+        
+        consecutive_failures = 0
+        while self.agent_running:
+            try:
+                loop = asyncio.get_event_loop()
+                def check_socket():
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.settimeout(2.0)
+                        s.connect((host, port))
+                        s.close()
+                        return True
+                    except Exception:
+                        return False
+
+                success = await loop.run_in_executor(None, check_socket)
+                
+                if success:
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
+                    logger.warning(f"📡 [Watchdog Red] Falla de conexión detectada ({consecutive_failures}/3) con {host}:{port}")
+                    
+                if consecutive_failures >= 3:
+                    logger.error("🚨 [Watchdog Red] MICRO-CORTE DE RED DETECTADO: El servidor de Vicidial no responde tras 3 intentos. Forzando deslogueo del agente...")
+                    
+                    try:
+                        await asyncio.to_thread(api_cfg.external_pause, True)
+                    except Exception:
+                        pass
+                    
+                    self.agent_running = False
+                    self.session_active = False
+                    
+                    if hasattr(self, 'phantom') and self.phantom:
+                        logger.info("🛑 [Watchdog Red] Cerrando sesión del navegador (PhantomAgent)...")
+                        await asyncio.to_thread(self.phantom.logout_and_stop)
+                        
+                    logger.error("❌ [Watchdog Red] Agente deslogueado y detenido debido a fallas de red/micro-cortes.")
+                    sys.exit(1)
+                    
+            except Exception as e:
+                logger.error(f"Error en watchdog de red: {e}")
+                
+            await asyncio.sleep(5.0)
+
+
     async def _time_watchdog(self):
         logger.info("🕒 [Reloj] Iniciando watchdog de horario de trabajo activo...")
         while self.agent_running:
@@ -1131,6 +1197,7 @@ class VoiceAgent:
         self.agent_running = True
         if self.execution_mode in ('produccion', 'pruebas'):
             asyncio.create_task(self._time_watchdog())
+            asyncio.create_task(self._network_watchdog())
         try:
             while self.agent_running:
                 # Esperar a que el colgado de la llamada anterior finalice por completo antes de iniciar la nueva sesión
