@@ -500,15 +500,20 @@ class VoiceAgent:
         while getattr(self, '_ai_playback_active', False) or not self.audio_out_queue.empty():
             await asyncio.sleep(0.2)
             
-        status_to_send = self.final_disposition
-        if not status_to_send:
-            status_opts = self.voice_cfg.get('dispositions', {})
-            status_to_send = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
-            
-        logger.warning(f"🛑 [Cierre] Enviando estatus: {status_to_send}")
+        api_cfg = getattr(self.tools_dispatcher, 'api', None)
+        if api_cfg:
+            if not api_cfg._pending_status:
+                status_to_send = self.final_disposition
+                if not status_to_send:
+                    status_opts = self.voice_cfg.get('dispositions', {})
+                    status_to_send = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
+                api_cfg._pending_status = status_to_send
+                api_cfg._status_called = True
+
+        logger.warning(f"🛑 [Cierre] Procediendo al colgado final con estatus: {api_cfg._pending_status if api_cfg else self.final_disposition}")
         if self.execution_mode in ('produccion', 'pruebas'):
-            await asyncio.to_thread(self.tools_dispatcher.api.external_status, status_to_send)
-            await asyncio.to_thread(self.tools_dispatcher.api.external_hangup)
+            if api_cfg:
+                await asyncio.to_thread(api_cfg.external_hangup)
         else:
             logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
         self.session_active = False
