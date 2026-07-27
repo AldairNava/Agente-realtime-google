@@ -128,7 +128,6 @@ class VoiceAgent:
                 self.amex_handler.confirmar_rfc_amex,
                 self.amex_handler.proveer_dato_faltante_amex,
                 self.amex_handler.obtener_rfc_extraido_amex,
-                self.finalizar_venta_amex,
                 self.rag.consultar_catalogo_amex
             ])
             logger.info("💳 [AMEX] Tools de formulario AMEX y catálogo RAG activadas.")
@@ -769,6 +768,48 @@ class VoiceAgent:
                     return
                 self.hangup_executed = True
                 
+                # --- Integrar lógica de venta exitosa AMEX ---
+                api_cfg = getattr(self.tools_dispatcher, 'api', None)
+                if self.campania_name == 'amex':
+                    if (api_cfg and getattr(api_cfg, '_pending_status', None) == 'SALE') or self.final_disposition == 'SALE':
+                        logger.warning("📞 [AMEX] Venta exitosa detectada en external_hangup. Iniciando sincronización y guardado...")
+                        # 1. Guardar respaldo de los datos capturados
+                        if getattr(self, 'amex_handler', None) and hasattr(self.amex_handler, '_datos'):
+                            import json
+                            import time
+                            respaldo_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', 'amex', 'respaldo_ventas')
+                            os.makedirs(respaldo_dir, exist_ok=True)
+                            timestamp = time.strftime("%Y%m%d_%H%M%S")
+                            telefono = getattr(self, 'vicidial_phone', 'desconocido')
+                            respaldo_path = os.path.join(respaldo_dir, f"venta_{telefono}_{timestamp}.json")
+                            try:
+                                with open(respaldo_path, 'w', encoding='utf-8') as f:
+                                    json.dump(self.amex_handler._datos, f, ensure_ascii=False, indent=4)
+                                logger.info(f"💾 [AMEX] Respaldo de datos de venta guardado en: {respaldo_path}")
+                            except Exception as e:
+                                logger.error(f"Error guardando respaldo de venta AMEX: {e}")
+                        
+                        self.final_disposition = 'SALE'
+                        if api_cfg:
+                            api_cfg._pending_status = 'SALE'
+                            api_cfg._status_called = True
+                        
+                        # 2. Escribir el archivo para que Selenium avance
+                        sync_dir = os.path.join(os.path.dirname(__file__), '..', 'tools', 'amex_sync')
+                        os.makedirs(sync_dir, exist_ok=True)
+                        try:
+                            with open(os.path.join(sync_dir, 'call_ended.txt'), 'w', encoding='utf-8') as f:
+                                f.write("true")
+                        except Exception as e:
+                            logger.error(f"Error escribiendo call_ended.txt: {e}")
+                            
+                        # 3. Programar el chequeo del resultado de AMEX en segundo plano
+                        if hasattr(self, 'loop') and self.loop.is_running():
+                            self.loop.call_soon_threadsafe(
+                                lambda: asyncio.create_task(self._wait_for_amex_apis())
+                            )
+                # ----------------------------------------------
+
                 # Programar el colgado asíncrono cancelable
                 if self.delayed_hangup_task:
                     self.delayed_hangup_task.cancel()
@@ -956,9 +997,9 @@ class VoiceAgent:
                 logger.error(f"Error en watchdog AMEX: {e}")
             await asyncio.sleep(1)
 
-    def finalizar_venta_amex(self) -> str:
-        """Herramienta para que la IA finalice la llamada tras la venta AMEX. Esta herramienta debe ser ejecutada obligatoriamente en cualquier script de salida o despedida donde se mencione 'Le atendió Liliana Hernández' para finalizar y cerrar la llamada."""
-        logger.warning("📞 [AMEX] finalizar_venta_amex invocado. Colgando al cliente localmente...")
+    def _finalizar_venta_amex(self) -> str:
+        """Helper privado para finalizar venta AMEX."""
+        logger.warning("📞 [AMEX] _finalizar_venta_amex invocado. Colgando al cliente localmente...")
         
         # Guardar respaldo de los datos capturados
         if getattr(self, 'amex_handler', None) and hasattr(self.amex_handler, '_datos'):
