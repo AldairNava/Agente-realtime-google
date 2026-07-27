@@ -498,13 +498,6 @@ class VoiceAgent:
         while getattr(self, '_ai_playback_active', False) or not self.audio_out_queue.empty():
             await asyncio.sleep(0.2)
             
-        if getattr(self, 'transfer_executed', False) or self.campania_name == 'plata':
-            wait_time = 4.0
-        else:
-            wait_time = 2.0
-            
-        logger.info(f"⏳ [Cierre] Audio terminado. Esperando margen de seguridad de {wait_time}s...")
-        await asyncio.sleep(wait_time)
         status_to_send = self.final_disposition
         if not status_to_send:
             status_opts = self.voice_cfg.get('dispositions', {})
