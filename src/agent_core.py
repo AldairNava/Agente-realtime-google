@@ -411,7 +411,7 @@ class VoiceAgent:
             logger.error(f"Error inyectando estado actual: {e}")
 
     def fijar_estatus_final(self, estatus: str):
-        """Herramienta llamada por Gemini para marcar el resultado de la llamada sin colgar. Esta herramienta debe ser ejecutada obligatoriamente siempre ANTES de decir de viva voz cualquier frase de despedida o cierre."""
+        """Herramienta llamada por Gemini para marcar el resultado de la llamada sin colgar. Esta herramienta debe ser ejecutada obligatoriamente en cualquier script de salida o despedida donde se mencione 'Le atendió Liliana Hernández' para marcar y cerrar la llamada."""
         val_real = (self.voice_cfg.get('vicidial_api') or {}).get('status_map', {}).get(estatus, estatus)
         self.final_disposition = val_real
         logger.warning(f"💾 [Estatus] Gemini fijó el resultado como: {estatus} ({val_real})")
@@ -957,7 +957,7 @@ class VoiceAgent:
             await asyncio.sleep(1)
 
     def finalizar_venta_amex(self) -> str:
-        """Herramienta para que la IA finalice la llamada tras la venta AMEX. Esta herramienta debe ser ejecutada obligatoriamente siempre ANTES de decir de viva voz cualquier frase de despedida o cierre."""
+        """Herramienta para que la IA finalice la llamada tras la venta AMEX. Esta herramienta debe ser ejecutada obligatoriamente en cualquier script de salida o despedida donde se mencione 'Le atendió Liliana Hernández' para finalizar y cerrar la llamada."""
         logger.warning("📞 [AMEX] finalizar_venta_amex invocado. Colgando al cliente localmente...")
         
         # Guardar respaldo de los datos capturados
