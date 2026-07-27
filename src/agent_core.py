@@ -753,6 +753,7 @@ class VoiceAgent:
             self.session_active = False
 
     async def _process_tool_call(self, session, fc):
+        logger.warning(f"🛠️ [Tool Call] Gemini invocó la herramienta: '{fc.name}' con argumentos: {fc.args}")
         if hasattr(self, 'call_transcript'):
             self.call_transcript.append(f"Llamando herramienta: {fc.name} con argumentos: {fc.args}")
         try:
