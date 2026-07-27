@@ -87,7 +87,7 @@ class VicidialAPI:
             return f"Error: {e}"
 
     def external_hangup(self):
-        """Cuelga la llamada activa del agente y tipifica con la de espera (o fallback) tras 3 segundos."""
+        """Cuelga la llamada activa del agente. Esta herramienta debe ser ejecutada obligatoriamente siempre ANTES de decir de viva voz cualquier frase de despedida o cierre."""
         if getattr(self, 'call_hungup_sent', False):
             logger.info("🛑 [VicidialAPI] external_hangup already called, skipping duplicate.")
             return "SUCCESS: already hung up"
