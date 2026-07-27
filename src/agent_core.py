@@ -494,12 +494,9 @@ class VoiceAgent:
         return {"result": "success", "message": "Registro completado e inserción a CNAgenteDepuracion iniciada. Colgando llamada en unos segundos."}
 
     async def _delayed_hangup_timer(self):
-        # Esperar a que termine de hablar (máximo 15 segundos)
         logger.info("⏱️ [Cierre] Esperando a que termine el audio antes de colgar...")
-        for _ in range(30):
-            if not getattr(self, '_ai_playback_active', False) and self.audio_out_queue.empty():
-                break
-            await asyncio.sleep(0.5)
+        while getattr(self, '_ai_playback_active', False) or not self.audio_out_queue.empty():
+            await asyncio.sleep(0.2)
             
         if self.campania_name == 'amex':
             wait_time = 22.0
