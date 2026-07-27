@@ -408,11 +408,32 @@ class AMEXFormHandler:
             f.write(contenido if contenido else campo)
 
     def _wait_for_sync_data(self, filename: str) -> str:
-        """Bloquea el hilo hasta que aparezca el archivo de confirmación."""
+        """Bloquea el hilo hasta que aparezca el archivo de confirmación, procesando actualizaciones de otros campos en el camino."""
         path = os.path.join(self.sync_dir, filename)
         while True:
+            # 1. Comprobar si hay otros archivos de confirmación en el directorio para campos ya pasados o futuros
+            if getattr(self, 'driver', None):
+                try:
+                    for f in os.listdir(self.sync_dir):
+                        if f.endswith("_confirmacion.txt") and f != filename:
+                            f_path = os.path.join(self.sync_dir, f)
+                            field_name = f.replace("_confirmacion.txt", "")
+                            time.sleep(0.1)
+                            try:
+                                with open(f_path, 'r', encoding='utf-8') as file_obj:
+                                    value = file_obj.read().strip()
+                                
+                                logger.info(f"🔄 [AMEX Sync] Actualización fuera de flujo detectada para campo '{field_name}': {value}")
+                                self._actualizar_campo_dinamico(field_name, value)
+                                os.remove(f_path)
+                            except Exception as update_err:
+                                logger.warning(f"Error procesando actualización de {f}: {update_err}")
+                except Exception:
+                    pass
+
+            # 2. Comprobar si el archivo esperado ha aparecido
             if os.path.exists(path):
-                time.sleep(0.2) # Evitar colisión de lectura/escritura
+                time.sleep(0.2)
                 try:
                     with open(path, 'r', encoding='utf-8') as f:
                         data = f.read().strip()
@@ -421,6 +442,61 @@ class AMEXFormHandler:
                 except Exception as e:
                     logger.warning(f"Error leyendo {filename}: {e}")
             time.sleep(1)
+
+    def _actualizar_campo_dinamico(self, campo: str, valor: str):
+        if not getattr(self, 'driver', None):
+            return
+            
+        selectors_map = {
+            "nombre": ["//input[@id='name']", "//input[contains(@aria-label, 'Nombre')]"],
+            "apellido_paterno": ["//input[@id='fathersurname']", "//input[contains(@aria-label, 'paterno')]"],
+            "apellido_materno": ["//input[@id='mothersurname']", "//input[contains(@aria-label, 'materno')]"],
+            "email": ["//input[@id='email']", "//input[@type='email']"],
+            "celular": ["//input[@id='celular']", "//input[@id='mobile']", "//input[@name='mobile']"],
+            "codigo_postal": ["//input[@id='zipcode']", "//input[@id='cp']", "//input[@name='zipcode']"],
+            "ocupacion": ["//select[@id='ocupacion']", "//select[@name='ocupacion']"],
+        }
+        
+        try:
+            if campo == "rfc":
+                vata_el = self._find_input_field(self.driver, None, ["//input[@id='vata']"])
+                if vata_el and len(valor) >= 10:
+                    vatb_el = self._find_input_field(self.driver, None, ["//input[@id='vatb']"])
+                    vatc_el = self._find_input_field(self.driver, None, ["//input[@id='vatc']"])
+                    part_1 = valor[:4]
+                    part_2 = valor[4:10]
+                    part_3 = valor[10:]
+                    self._fill_text_field(self.driver, vata_el, part_1)
+                    if vatb_el: self._fill_text_field(self.driver, vatb_el, part_2)
+                    if vatc_el: self._fill_text_field(self.driver, vatc_el, part_3)
+                else:
+                    rfc_el = self._find_input_field(self.driver, None, ["//input[@id='vat']", "//input[@name='vat']", "//input[@id='rfc']"])
+                    if rfc_el:
+                        self._fill_text_field(self.driver, rfc_el, valor)
+            elif campo == "ocupacion":
+                ocupacion_el = self._find_input_field(self.driver, None, selectors_map["ocupacion"])
+                if ocupacion_el:
+                    valor_ocupacion = valor.strip().lower()
+                    norm_map = {
+                        "ejecutivo": "ejecutivo", "contador": "contador", "director": "director_gerente_supervisor",
+                        "gerente": "director_gerente_supervisor", "supervisor": "director_gerente_supervisor",
+                        "vendedor": "vendedor", "servicio": "servicio_cliente", "cliente": "servicio_cliente",
+                        "chofer": "chofer", "abogado": "abogado", "otros": "otros", "otro": "otros"
+                    }
+                    val_to_select = "otros"
+                    for k, v in norm_map.items():
+                        if k in valor_ocupacion:
+                            val_to_select = v
+                            break
+                    s = Select(ocupacion_el)
+                    s.select_by_value(val_to_select)
+                    logger.info(f"✅ [AMEX Async] Ocupación actualizada: {val_to_select}")
+            elif campo in selectors_map:
+                el = self._find_input_field(self.driver, None, selectors_map[campo])
+                if el:
+                    self._fill_text_field(self.driver, el, valor)
+        except Exception as e:
+            logger.warning(f"No se pudo actualizar dinámicamente el campo {campo}: {e}")
 
     def _procesar_apis_backend(self, url_resultante: str):
         """Llama a buscarLeadAmex y guardarVenta usando el teléfono y los datos extraídos."""

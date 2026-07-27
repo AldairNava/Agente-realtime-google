@@ -95,11 +95,6 @@ class VicidialAPI:
         self.hangup_in_progress = True
         
         try:
-            # Esperar 22 segundos obligatorios al inicio para dar margen de seguridad (por ejemplo, para que terminen las despedidas)
-            import time
-            logger.info("⏳ [VicidialAPI] Esperando 22 segundos obligatorios al inicio de external_hangup...")
-            time.sleep(22.0)
-            
             # 1. Colgar la llamada inmediatamente
             logger.info("🛑 [VicidialAPI] Ejecutando colgado de canal (external_hangup)...")
             res_hangup = self._call_api("external_hangup", {"value": "1"})

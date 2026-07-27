@@ -501,17 +501,27 @@ class VoiceAgent:
                 break
             await asyncio.sleep(0.5)
             
-        wait_time = 4.0 if getattr(self, 'transfer_executed', False) or self.campania_name == 'plata' else 2.0
+        if self.campania_name == 'amex':
+            wait_time = 22.0
+        elif getattr(self, 'transfer_executed', False) or self.campania_name == 'plata':
+            wait_time = 4.0
+        else:
+            wait_time = 2.0
+            
         logger.info(f"⏳ [Cierre] Audio terminado. Esperando margen de seguridad de {wait_time}s...")
         await asyncio.sleep(wait_time)
-        if self.final_disposition:
-            logger.warning(f"🛑 [Cierre] Enviando estatus: {self.final_disposition}")
-            if self.execution_mode in ('produccion', 'pruebas'):
-                await asyncio.to_thread(self.tools_dispatcher.api.external_status, self.final_disposition)
-                await asyncio.to_thread(self.tools_dispatcher.api.external_hangup)
-            else:
-                logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
-            self.session_active = False
+        status_to_send = self.final_disposition
+        if not status_to_send:
+            status_opts = self.voice_cfg.get('dispositions', {})
+            status_to_send = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
+            
+        logger.warning(f"🛑 [Cierre] Enviando estatus: {status_to_send}")
+        if self.execution_mode in ('produccion', 'pruebas'):
+            await asyncio.to_thread(self.tools_dispatcher.api.external_status, status_to_send)
+            await asyncio.to_thread(self.tools_dispatcher.api.external_hangup)
+        else:
+            logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
+        self.session_active = False
 
     async def _hangup_watchdog(self):
         logger.info("⏳ [Watchdog] Desactivado watchdog de base de datos asterisk.")
@@ -650,8 +660,16 @@ class VoiceAgent:
                         if api_cfg and not api_cfg._status_called:
                             api_cfg._pending_status = self.voice_cfg.get('dispositions', {}).get('client_speech', 'CLCU')
                     if self.delayed_hangup_task:
+                        logger.info("🚨 [VAD] Voz del cliente detectada durante despedida. Cancelando colgado programado...")
                         self.delayed_hangup_task.cancel()
                         self.delayed_hangup_task = None
+                    self.hangup_executed = False
+                    self.transfer_executed = False
+                    self.final_disposition = None
+                    if self.execution_mode in ('produccion', 'pruebas'):
+                        api_cfg = getattr(self.tools_dispatcher, 'api', None)
+                        if api_cfg:
+                            api_cfg.hangup_in_progress = False
 
                 if self.recorder: self.recorder.write_client(chunk)
 
@@ -685,6 +703,19 @@ class VoiceAgent:
                         if not self.greeting_lock:
                             while not self.audio_out_queue.empty(): self.audio_out_queue.get_nowait()
                             logger.info("🔇 [Barge-in] Limpiando cola de audio.")
+                        
+                        # Cancelar y resetear colgado diferido en caso de interrupción/Barge-in
+                        if self.delayed_hangup_task:
+                            logger.info("🚨 [Barge-in] Interrupción del cliente detectada durante despedida. Cancelando colgado programado...")
+                            self.delayed_hangup_task.cancel()
+                            self.delayed_hangup_task = None
+                        self.hangup_executed = False
+                        self.transfer_executed = False
+                        self.final_disposition = None
+                        if self.execution_mode in ('produccion', 'pruebas'):
+                            api_cfg = getattr(self.tools_dispatcher, 'api', None)
+                            if api_cfg:
+                                api_cfg.hangup_in_progress = False
                         continue
                     
                     if self.vicidial_incall and not getattr(self, "_hangup_done", False):
@@ -742,13 +773,14 @@ class VoiceAgent:
                     return
                 self.hangup_executed = True
                 
-                logger.info("⏱️ Retrasando ejecución de external_hangup 6 segundos")
-                # Wait up to 6 seconds in small chunks to detect session end
-                for _ in range(12):
-                    if not getattr(self, 'session_active', False):
-                        logger.info("📞 Cliente colgó durante la despedida. Cortando retraso.")
-                        break
-                    await asyncio.sleep(0.5)
+                # Programar el colgado asíncrono cancelable
+                if self.delayed_hangup_task:
+                    self.delayed_hangup_task.cancel()
+                if hasattr(self, 'loop') and self.loop.is_running():
+                    self.loop.call_soon_threadsafe(
+                        lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_hangup_timer()))
+                    )
+                result = {"result": "success", "message": "Colgado programado."}
 
             # Handle transfer_conference with delay and guard BEFORE executing the tool
             if fc.name == 'transfer_conference':
@@ -775,7 +807,41 @@ class VoiceAgent:
                         break
                     await asyncio.sleep(0.5)
 
-            result = await asyncio.to_thread(self.tools_dispatcher.execute_tool, fc.name, fc.args)
+            if fc.name == 'obtener_rfc_extraido_amex':
+                async def wait_and_inject_rfc():
+                    path = os.path.join(self.amex_handler.sync_dir, "need_rfc.txt")
+                    start_time = asyncio.get_event_loop().time()
+                    rfc = None
+                    while asyncio.get_event_loop().time() - start_time < 120:
+                        if not getattr(self, 'session_active', False):
+                            break
+                        if os.path.exists(path):
+                            await asyncio.sleep(0.2)
+                            try:
+                                with open(path, 'r', encoding='utf-8') as f:
+                                    rfc = f.read().strip()
+                                os.remove(path)
+                                logger.info(f"✅ [AMEX Async RFC] RFC extraído exitosamente de need_rfc.txt: {rfc}")
+                                break
+                            except Exception as e:
+                                logger.warning(f"Error leyendo need_rfc.txt: {e}")
+                        await asyncio.sleep(1)
+                    
+                    if rfc and getattr(self, 'session_active', False):
+                        logger.info(f"📥 [AMEX Async RFC] Inyectando RFC al agente: {rfc}")
+                        await session.send_realtime_input(
+                            text=f"[SISTEMA: RFC EXTRAÍDO. El RFC autogenerado del cliente es: {rfc}. Léelo al cliente de viva voz exactamente tal cual y pregúntale si es correcto. Recuerda confirmar en dos pasos antes de guardar o modificar.]"
+                        )
+                    elif getattr(self, 'session_active', False):
+                        logger.error("❌ [AMEX Async RFC] Tiempo de espera agotado buscando need_rfc.txt")
+                        await session.send_realtime_input(
+                            text="[SISTEMA: No se pudo obtener el RFC automáticamente. Por favor solicítalo manualmente o procede a reagendar la llamada.]"
+                        )
+
+                asyncio.create_task(wait_and_inject_rfc())
+                result = {"resultado_oficial": "Extracción automática iniciada. Esperando a que el sistema calcule el RFC en segundo plano."}
+            else:
+                result = await asyncio.to_thread(self.tools_dispatcher.execute_tool, fc.name, fc.args)
             if hasattr(self, 'call_transcript'):
                 self.call_transcript.append(f"Respuesta de herramienta {fc.name}: {result}")
 
@@ -907,15 +973,13 @@ class VoiceAgent:
         
         self.final_disposition = 'SALE'
         
-        # Colgar llamada al cliente
-        if self.execution_mode in ('produccion', 'pruebas') and hasattr(self.tools_dispatcher, 'api'):
-            api_cfg = self.tools_dispatcher.api
-            if api_cfg:
-                import threading
-                try:
-                    threading.Thread(target=api_cfg.external_hangup, daemon=True).start()
-                except Exception as e:
-                    logger.error(f"Error al colgar cliente en AMEX: {e}")
+        # Colgar llamada al cliente de forma diferida (permite cancelación asíncrona si hay interrupción)
+        if self.delayed_hangup_task:
+            self.delayed_hangup_task.cancel()
+        if hasattr(self, 'loop') and self.loop.is_running():
+            self.loop.call_soon_threadsafe(
+                lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_hangup_timer()))
+            )
         
         # Escribir el archivo para que Selenium avance
         sync_dir = os.path.join(os.path.dirname(__file__), '..', 'tools', 'amex_sync')
