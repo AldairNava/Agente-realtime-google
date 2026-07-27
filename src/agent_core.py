@@ -771,6 +771,15 @@ class VoiceAgent:
                         lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_hangup_timer()))
                     )
                 result = {"result": "success", "message": "Colgado programado."}
+                if hasattr(self, 'call_transcript'):
+                    self.call_transcript.append(f"Respuesta de herramienta {fc.name}: {result}")
+                try:
+                    await session.send_tool_response(
+                        function_responses=[types.FunctionResponse(name=fc.name, response=result, id=fc.id)]
+                    )
+                except Exception as e:
+                    logger.warning(f"Error enviando respuesta de tool: {e}")
+                return
 
             # Handle transfer_conference with delay and guard BEFORE executing the tool
             if fc.name == 'transfer_conference':
