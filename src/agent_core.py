@@ -1269,6 +1269,15 @@ class VoiceAgent:
             asyncio.create_task(self._network_watchdog())
         try:
             while self.agent_running:
+                # Cancelar cualquier tarea de colgado diferido pendiente de la llamada anterior
+                if self.delayed_hangup_task:
+                    try:
+                        self.delayed_hangup_task.cancel()
+                        logger.info("🧹 [Core] Cancelada tarea de colgado diferido de la llamada anterior.")
+                    except Exception as e:
+                        logger.warning(f"Error cancelando delayed_hangup_task: {e}")
+                    self.delayed_hangup_task = None
+
                 # Esperar a que el colgado de la llamada anterior finalice por completo antes de iniciar la nueva sesión
                 if self.execution_mode in ('produccion', 'pruebas'):
                     api_cfg = self.tools_dispatcher.api
