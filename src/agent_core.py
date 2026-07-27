@@ -1605,7 +1605,9 @@ class VoiceAgent:
                                                     
                                                 is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
                                                 if is_valid_name:
-                                                    greeting_phrase_2 = f"Qué tal buenas tardes, ¿se encontrará {first_name}?"
+                                                    # Extraer solo la primera palabra (primer nombre de pila) por si viene el nombre completo en el campo
+                                                    first_name_clean = first_name.strip().split()[0] if first_name else ""
+                                                    greeting_phrase_2 = f"Qué tal buenas tardes, ¿se encontrará {first_name_clean}?"
                                                 else:
                                                     greeting_phrase_2 = "Qué tal buenas tardes, ¿se encontrará el titular de la línea?"
                                                     
