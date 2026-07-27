@@ -498,9 +498,7 @@ class VoiceAgent:
         while getattr(self, '_ai_playback_active', False) or not self.audio_out_queue.empty():
             await asyncio.sleep(0.2)
             
-        if self.campania_name == 'amex':
-            wait_time = 22.0
-        elif getattr(self, 'transfer_executed', False) or self.campania_name == 'plata':
+        if getattr(self, 'transfer_executed', False) or self.campania_name == 'plata':
             wait_time = 4.0
         else:
             wait_time = 2.0
