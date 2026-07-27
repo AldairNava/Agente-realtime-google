@@ -789,6 +789,8 @@ class VoiceAgent:
                             except Exception as e:
                                 logger.error(f"Error guardando respaldo de venta AMEX: {e}")
                         
+                        self._send_telegram_sale_notification()
+                        
                         self.final_disposition = 'SALE'
                         if api_cfg:
                             api_cfg._pending_status = 'SALE'
@@ -997,6 +999,38 @@ class VoiceAgent:
                 logger.error(f"Error en watchdog AMEX: {e}")
             await asyncio.sleep(1)
 
+    def _send_telegram_sale_notification(self):
+        """Envia una notificacion de Telegram en un hilo de fondo si es venta exitosa de AMEX."""
+        try:
+            if getattr(self, 'amex_handler', None) and hasattr(self.amex_handler, '_datos'):
+                datos = self.amex_handler._datos
+                nombre_completo = f"{datos.get('nombre', '')} {datos.get('apellido_paterno', '')} {datos.get('apellido_materno', '')}".strip()
+                rfc = datos.get('rfc', 'No registrado')
+                telefono = getattr(self, 'vicidial_phone', 'desconocido')
+                celular = datos.get('celular', telefono)
+                email = datos.get('email', 'No registrado')
+                cp = datos.get('codigo_postal', 'No registrado')
+                lead_id = getattr(self, 'client_lead_id', 'desconocido')
+                user_agent = (self.voice_cfg.get('vicidial_api') or {}).get('user', 'desconocido')
+                
+                mensaje_telegram = (
+                    f"🎉 ¡VENTA EXITOSA AMEX! 🎉\n"
+                    f"👤 Cliente: {nombre_completo}\n"
+                    f"📞 Teléfono: {celular}\n"
+                    f"🆔 Lead ID: {lead_id}\n"
+                    f"🔑 RFC: {rfc}\n"
+                    f"📧 Email: {email}\n"
+                    f"📍 Código Postal: {cp}\n"
+                    f"🤖 Agente: {user_agent}"
+                )
+                from Tele import send_msg
+                if hasattr(self, 'loop') and self.loop.is_running():
+                    self.loop.call_soon_threadsafe(
+                        lambda: asyncio.create_task(asyncio.to_thread(send_msg, mensaje_telegram))
+                    )
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de Telegram: {e}")
+
     def _finalizar_venta_amex(self) -> str:
         """Helper privado para finalizar venta AMEX."""
         logger.warning("📞 [AMEX] _finalizar_venta_amex invocado. Colgando al cliente localmente...")
@@ -1016,7 +1050,8 @@ class VoiceAgent:
                 logger.info(f"💾 [AMEX] Respaldo de datos de venta guardado en: {respaldo_path}")
             except Exception as e:
                 logger.error(f"Error guardando respaldo de venta AMEX: {e}")
-        
+                
+        self._send_telegram_sale_notification()
         self.final_disposition = 'SALE'
         
         # Colgar llamada al cliente de forma diferida (permite cancelación asíncrona si hay interrupción)
