@@ -1605,16 +1605,23 @@ class VoiceAgent:
                                                     
                                                 is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
                                                 if is_valid_name:
-                                                    # Extraer solo la primera palabra (primer nombre de pila) por si viene el nombre completo en el campo
-                                                    first_name_clean = first_name.strip().split()[0] if first_name else ""
-                                                    greeting_phrase_2 = f"Qué tal buenas tardes, ¿se encontrará {first_name_clean}?"
+                                                    full_name_raw = f"{first_name} {last_name}".strip()
+                                                    logger.info(f"📢 [Monitor] Inyectando saludo con nombre completo raw para procesamiento inteligente: '{full_name_raw}'")
+                                                    await session.send_realtime_input(
+                                                        text=(
+                                                            f"[SISTEMA: SEGUNDO SALUDO. Di de viva voz una frase de saludo de manera amable e impecable preguntando por el cliente usando únicamente su primer nombre y primer apellido "
+                                                            f"(extraídos de forma inteligente del nombre completo: '{full_name_raw}'). "
+                                                            f"Por ejemplo: si el nombre es 'Alex Ronaldo de la Rosa Hernandez', di de viva voz: 'Qué tal buenas tardes, ¿se encontrará Alex de la Rosa?'. "
+                                                            f"Si el nombre es 'Aldair Nava Marquez', di de viva voz: 'Qué tal buenas tardes, ¿se encontrará Aldair Nava?'. "
+                                                            f"Está ESTRICTAMENTE PROHIBIDO que agregues cualquier otra frase, saludo o explicación adicional en este turno. Di únicamente esa frase de saludo y espera la respuesta del cliente. {brand_info}]"
+                                                        )
+                                                    )
                                                 else:
                                                     greeting_phrase_2 = "Qué tal buenas tardes, ¿se encontrará el titular de la línea?"
-                                                    
-                                                logger.info(f"📢 [IA] Enviando segunda parte del saludo: '{greeting_phrase_2}'")
-                                                await session.send_realtime_input(
-                                                    text=f"[SISTEMA: SEGUNDO SALUDO. Di de viva voz únicamente y de forma exacta: '{greeting_phrase_2}'. Está ESTRICTAMENTE PROHIBIDO que agregues cualquier otra frase, saludo o explicación adicional en este turno. Di exactamente esa frase y espera la respuesta del cliente. {brand_info}]"
-                                                )
+                                                    logger.info(f"📢 [IA] Enviando saludo genérico: '{greeting_phrase_2}'")
+                                                    await session.send_realtime_input(
+                                                        text=f"[SISTEMA: SEGUNDO SALUDO. Di de viva voz únicamente y de forma exacta: '{greeting_phrase_2}'. Está ESTRICTAMENTE PROHIBIDO que agregues cualquier otra frase, saludo o explicación adicional en este turno. Di exactamente esa frase y espera la respuesta del cliente. {brand_info}]"
+                                                    )
                                             
                                         else:
                                             # Si ya estaba en llamada, mantener activa la bandera
