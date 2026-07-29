@@ -25,6 +25,7 @@ class VADProcessor:
             if not os.path.exists(local_model_path):
                 logger.info("Intentando descargar silero_vad.jit automáticamente...")
                 try:
+                    import sys
                     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
                     from download_model import download_silero
                     download_silero()
@@ -32,8 +33,22 @@ class VADProcessor:
                     logger.warning(f"No se pudo descargar automáticamente silero_vad.jit: {dl_err}")
 
             if os.path.exists(local_model_path):
-                logger.info(f"Cargando Silero VAD localmente desde: {local_model_path}")
-                self.model = torch.jit.load(local_model_path)
+                load_path = local_model_path
+                # Si hay caracteres no ASCII en la ruta del modelo local (como la 'ñ'), copiar a carpeta temporal sin acentos para evitar fallos de fopen en C++ en Windows
+                if any(ord(c) > 127 for c in local_model_path):
+                    import tempfile
+                    import shutil
+                    temp_dir = tempfile.gettempdir()
+                    temp_model_path = os.path.join(temp_dir, "silero_vad_local.jit")
+                    try:
+                        shutil.copy2(local_model_path, temp_model_path)
+                        load_path = temp_model_path
+                        logger.info(f"Ruta con caracteres especiales detectada. Copiado temporalmente a: {load_path}")
+                    except Exception as copy_err:
+                        logger.warning(f"No se pudo copiar el modelo a la ruta temporal: {copy_err}")
+
+                logger.info(f"Cargando Silero VAD localmente desde: {load_path}")
+                self.model = torch.jit.load(load_path)
             else:
                 logger.warning(f"Modelo local no encontrado en {local_model_path}. Intentando descargar vía torch.hub...")
                 self.model, utils = torch.hub.load(
