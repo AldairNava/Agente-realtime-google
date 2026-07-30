@@ -37,6 +37,8 @@ scratch/
 chrome_profile/
 **/chrome_profile_siebel/
 **/chrome_profile_retencion/
+*_old/
+**/chrome_profile*_old/
 
 # Registros de llamadas
 registro_de_llamadas/
