@@ -1,6 +1,8 @@
+import os
 import json
 
-path = r"C:\vicidial-voice-agent_multicampaña\config\retention_scripts.json"
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+path = os.path.join(_CURRENT_DIR, "config", "retention_scripts.json")
 
 with open(path, "r", encoding="utf-8") as f:
     data = json.load(f)

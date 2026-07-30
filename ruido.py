@@ -2,7 +2,8 @@ import subprocess
 import os
 import sys
 
-AUDIO_PATH = r"C:\vicidial-voice-agent_multicampaña\ruido_fondo.m4a"
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+AUDIO_PATH = os.path.join(_CURRENT_DIR, "ruido_fondo.m4a")
 
 FFPLAY_PATH = r"C:\ffmpeg\bin\ffplay.exe"
 

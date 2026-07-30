@@ -1,8 +1,9 @@
 import os
 import json
 
-amex_json_path = r"C:\vicidial-voice-agent_multicampaña\config\amex_scripts.json"
-output_dir = r"C:\vicidial-voice-agent_multicampaña\config\textos_audios_amex"
+_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+amex_json_path = os.path.join(_CURRENT_DIR, "config", "amex_scripts.json")
+output_dir = os.path.join(_CURRENT_DIR, "config", "textos_audios_amex")
 
 os.makedirs(output_dir, exist_ok=True)
 
