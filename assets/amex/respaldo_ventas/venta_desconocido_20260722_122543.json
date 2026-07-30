@@ -1,0 +1,19 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_tdc": "si",
+    "tiene_auto": "si",
+    "tiene_hipoteca": "no",
+    "buro_credito_limpio": "si",
+    "es_pfae": "si",
+    "tipo_persona": "fisica",
+    "nombre": "Helena",
+    "apellido_paterno": "Martinez",
+    "apellido_materno": "Fernández",
+    "dia_nacimiento": "12",
+    "mes_nacimiento": "octubre",
+    "anio_nacimiento": "1985",
+    "rfc": "MAFH851012L50",
+    "email": "sofiamtz85@gmail.com",
+    "celular": "5510203040",
+    "codigo_postal": "32000"
+}

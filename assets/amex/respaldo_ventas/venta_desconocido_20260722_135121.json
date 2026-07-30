@@ -1,0 +1,16 @@
+{
+    "es_cliente_amex": "no",
+    "tiene_hipoteca": "si",
+    "buro_credito_limpio": "si",
+    "tipo_persona": "fisica",
+    "es_pfae": "no",
+    "nombre": "Elena",
+    "apellido_paterno": "Martinez",
+    "apellido_materno": "Hernandez",
+    "dia_nacimiento": "12",
+    "mes_nacimiento": "agosto",
+    "anio_nacimiento": "1990",
+    "rfc": "MAHE900812GI9",
+    "celular": "5510203040",
+    "codigo_postal": "32100"
+}
