@@ -44,7 +44,7 @@ def _write_signal(filename: str, content: str) -> dict:
 
 
 def _write_pollution(cuenta: str, tipo_caso: str) -> dict:
-    """Escribe un archivo de señal para el RPA de Pollution (Generación de Casos de Negocio en Siebel)."""
+    """Escribe un archivo de señal para el RPA de Pollution (Generación de Casos de Negocio en Siebel) y registra en BD."""
     try:
         pollution_dir = Path(r"C:\pollution")
         pollution_dir.mkdir(parents=True, exist_ok=True)
@@ -54,6 +54,30 @@ def _write_pollution(cuenta: str, tipo_caso: str) -> dict:
         content = f"{cuenta}|{tipo_caso}"
         signal_path.write_text(content, encoding="utf-8")
         logger.info(f"📤 [RetencionTools] Archivo pollution_cte.txt escrito en C:\\pollution: {content}")
+        
+        # Guardado en base de datos RetencionCallBack
+        try:
+            from tools.fallback_db import guardar_cliente_fallback
+            tel_file = SIGNALS_DIR / "tel.txt"
+            nombre_file = SIGNALS_DIR / "nombre.txt"
+            motivo_file = SIGNALS_DIR / "motivo.txt"
+            
+            tel_val = tel_file.read_text(encoding="utf-8").strip() if tel_file.exists() else None
+            nombre_val = nombre_file.read_text(encoding="utf-8").strip() if nombre_file.exists() else None
+            motivo_val = motivo_file.read_text(encoding="utf-8").strip() if motivo_file.exists() else None
+            
+            db_res = guardar_cliente_fallback(
+                cuenta=cuenta,
+                telefono=tel_val,
+                nombre_cliente=nombre_val,
+                motivo_cancelacion=motivo_val,
+                tipo_caso=tipo_caso,
+                nivel_retencion=0
+            )
+            logger.info(f"📊 [RetencionTools] Registro guardado en BD RetencionCallBack: {db_res}")
+        except Exception as db_err:
+            logger.error(f"⚠️ [RetencionTools] Error al guardar en BD RetencionCallBack: {db_err}")
+
         return {"status": "ok", "signal": "pollution_cte.txt", "value": content}
     except Exception as e:
         logger.error(f"❌ [RetencionTools] Error escribiendo pollution_cte.txt: {e}")
@@ -177,6 +201,65 @@ def limpiar_senales() -> dict:
         logger.error(f"❌ [RetencionTools] Error limpiando señales: {e}")
         return {"status": "error", "message": str(e)}
 
+# Alias para compatibilidad con la definición de la herramienta
+limpiar_senales_rpa = limpiar_senales
+
+
+def clasificar_perfil_cuenta(datos: dict) -> dict:
+    """
+    Analiza la información extraída por Siebel RPA e identifica automáticamente:
+    Portafolio, Tecnología (FTTH/HFC), Segmento (Residencial/Negocios) y Plazo Forzoso.
+    """
+    items = datos.get("items_facturacion", [])
+    texto_full = " ".join([str(i) for i in items] + [str(v) for v in datos.values()]).lower()
+
+    # 1. Portafolio
+    if any(str(item).endswith(" M") or " m " in str(item).lower() for item in items):
+        portafolio = "Modular / Ladrillos"
+    elif "axt" in texto_full or "axtel" in texto_full:
+        portafolio = "Lego Axtel"
+    elif "wizz" in texto_full or "unesco" in texto_full:
+        portafolio = "Wizz PM / Wizz Plus"
+    elif items and not any("izzi" in str(item).lower() for item in items):
+        portafolio = "Legacy / Cablevisión (Requiere 'Actualizar Oferta')"
+    else:
+        portafolio = "Masivo / izzi Wow"
+
+    # 2. Tecnología
+    if any(str(item).startswith("L ") or str(item).startswith("LN ") or "ftth" in str(item).lower() for item in items):
+        tecnologia = "FTTH (Fibra Óptica - Migración forzosa requiere cambio de equipos)"
+    else:
+        tecnologia = "HFC (Coaxial)"
+
+    # 3. Segmento
+    if "negocios" in texto_full:
+        segmento = "Negocios (Requiere Apoderado Legal / Acta Constitutiva)"
+    else:
+        segmento = "Residencial"
+
+    # 4. Plazo Forzoso
+    tiene_plazo = datos.get("plazo_vigente", False) or "plazo" in datos.get("estatus", "").lower()
+    if tiene_plazo:
+        plazo_status = "Con Plazo Vigente (Aplica penalización en baja anticipada)"
+    else:
+        plazo_status = "Sin Plazo (Apto para Renovación a 6 meses Con/Sin Beneficios)"
+
+    reglas = []
+    if "Sin Plazo" in plazo_status:
+        reglas.append("Apto para Renovación de Plazo Forzoso a 6 meses.")
+    if "Negocios" in segmento:
+        reglas.append("No aplica Adhesión de Derechos; requiere validar Apoderado Legal.")
+    if "Legacy" in portafolio:
+        reglas.append("Para realizar Downsale/Downgrade primero dar clic en 'Actualizar Oferta'.")
+
+    return {
+        "portafolio": portafolio,
+        "tecnologia": tecnologia,
+        "segmento": segmento,
+        "plazo_forzoso": plazo_status,
+        "reglas_aplicables": reglas
+    }
+
 
 def obtener_datos_cliente() -> dict:
     """
@@ -185,7 +268,7 @@ def obtener_datos_cliente() -> dict:
     información detallada del cliente que ya fue buscado en el sistema.
     
     Returns:
-        dict con la información del cliente o un mensaje de estado.
+        dict con la información del cliente, perfil_cuenta y reglas aplicables.
     """
     try:
         datos_path = SIGNALS_DIR / "datos_cliente.json"
@@ -193,7 +276,12 @@ def obtener_datos_cliente() -> dict:
             import json
             content = datos_path.read_text(encoding="utf-8")
             datos = json.loads(content)
-            logger.info(f"📖 [RetencionTools] Datos del cliente leídos: {list(datos.keys())}")
+            
+            # Clasificación automática de perfil de cuenta
+            perfil = clasificar_perfil_cuenta(datos)
+            datos["perfil_cuenta"] = perfil
+            
+            logger.info(f"📖 [RetencionTools] Datos del cliente leídos: {list(datos.keys())} | Perfil: {perfil['portafolio']} / {perfil['tecnologia']}")
             return {"status": "ok", "datos": datos}
         else:
             logger.warning("⚠️ [RetencionTools] El archivo datos_cliente.json no existe aún.")

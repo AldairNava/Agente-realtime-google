@@ -26,7 +26,7 @@ SIGNALS_DIR = _SCRIPT_DIR / "assets" / "retencion" / "rpa_signals"
 # Credenciales y URL de Siebel
 SIEBLE = 'https://crm.izzi.mx/siebel/app/ecommunications/esn'
 user = 'p-efgarciac'
-password = 'Rpa$CyberBack01'
+password = 'Rpa$CyberBack02'
 
 # XPaths de Inicio de Sesión
 xpath_usuario_login = '/html/body/form/div/div[2]/div[1]/span/input'
@@ -230,46 +230,134 @@ def loginSiebel(headless: bool = False):
 
 def extraer_datos_cliente(driver) -> dict:
     """
-    Escanea la pantalla actual en busca de inputs y campos de datos
-    para generar un diccionario estructurado del cliente consultado.
+    Escanea exhaustivamente la pantalla actual de Siebel en busca de inputs, selects, textareas,
+    etiquetas y celdas de tablas para generar un diccionario estructurado completo del cliente.
     """
-    logger.info("🔍 Escaneando datos del cliente en pantalla...")
+    logger.info("🔍 Escaneando datos detallados del cliente en pantalla...")
+    import re
     datos = {}
-    
-    for tag in ["input", "textarea"]:
-        elements = driver.find_elements(By.TAG_NAME, tag)
-        for el in elements:
-            try:
-                if el.is_displayed():
-                    label = (
-                        el.get_attribute("aria-label") or 
-                        el.get_attribute("un") or 
-                        el.get_attribute("placeholder") or 
-                        el.get_attribute("name")
-                    )
-                    val = el.get_attribute("value")
-                    if label and val:
-                        label = label.strip()
-                        val = val.strip()
+    items_facturacion = []
+
+    def _clean_label(text: str) -> str:
+        if not text:
+            return ""
+        # Eliminar etiquetas HTML como <font color="red">
+        clean = re.sub(r'<[^>]+>', '', str(text)).strip()
+        # Normalizar espacios
+        clean = re.sub(r'\s+', ' ', clean)
+        return clean
+
+    # 1. Escanear elementos interactivos (input, textarea, select)
+    for tag in ["input", "textarea", "select"]:
+        try:
+            elements = driver.find_elements(By.TAG_NAME, tag)
+            for el in elements:
+                try:
+                    if el.is_displayed():
+                        # Obtener la etiqueta más limpia disponible (priorizando rn en Siebel)
+                        raw_label = (
+                            el.get_attribute("rn") or 
+                            el.get_attribute("aria-label") or 
+                            el.get_attribute("un") or 
+                            el.get_attribute("placeholder") or 
+                            el.get_attribute("name") or ""
+                        )
+                        label = _clean_label(raw_label)
+
+                        # Si la etiqueta viene vacía, intentar por aria-labelledby
+                        if not label:
+                            labelledby = el.get_attribute("aria-labelledby")
+                            if labelledby:
+                                try:
+                                    lbl_el = driver.find_element(By.ID, labelledby)
+                                    label = _clean_label(lbl_el.text)
+                                except Exception:
+                                    pass
+
+                        # Obtener el valor del campo
+                        val = el.get_attribute("value")
+                        if tag == "select" and not val:
+                            try:
+                                val = el.find_element(By.XPATH, ".//option[@selected]").text
+                            except Exception:
+                                pass
+
+                        val = _clean_label(val)
+
                         if label and val:
                             datos[label] = val
+                            # Si la etiqueta limpia es diferente de la etiqueta cruda, guardar ambas
+                            if raw_label and raw_label != label:
+                                datos[_clean_label(raw_label)] = val
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Error al escanear tag {tag}: {e}")
+
+    # 2. Escanear celdas de tablas jqGrid en Siebel (Encabezados → Valores)
+    try:
+        tables = driver.find_elements(By.XPATH, "//table[contains(@class, 'ui-jqgrid-btable') or contains(@class, 'siebui-grid')]")
+        for table in tables:
+            try:
+                headers = [th.text.strip() for th in table.find_elements(By.XPATH, ".//th")]
+                rows = table.find_elements(By.XPATH, ".//tr")
+                for row in rows:
+                    cells = row.find_elements(By.XPATH, ".//td")
+                    if cells:
+                        cell_texts = [c.text.strip() for c in cells]
+                        for idx, text in enumerate(cell_texts):
+                            if text:
+                                header_name = headers[idx] if idx < len(headers) and headers[idx] else f"col_{idx}"
+                                clean_header = _clean_label(header_name)
+                                if clean_header and clean_header not in datos:
+                                    datos[clean_header] = text
+                                
+                                # Filtrar productos o ítems de servicios
+                                if len(text) > 3 and any(token in text for token in ["izzi", "AXT", "wizz", "UNESCO", "Afizzionados", "Internet", "HD M", "2P", "3P", "TV", "FTTH", "HFC"]):
+                                    if text not in items_facturacion:
+                                        items_facturacion.append(text)
             except Exception:
                 pass
+    except Exception as e:
+        logger.warning(f"Advertencia al escanear tablas de Siebel: {e}")
 
-    # Mapeo de campos conocidos a llaves consistentes en español e inglés
+    # 3. Escanear elementos sueltos con clase siebui-value o grid-cell
+    try:
+        value_spans = driver.find_elements(By.XPATH, "//span[contains(@class, 'siebui-value') or contains(@class, 'grid-cell')]")
+        for span in value_spans:
+            try:
+                text = span.text.strip()
+                if text and len(text) > 3:
+                    if any(token in text for token in ["izzi", "AXT", "wizz", "UNESCO", "Afizzionados", "Internet", "HD M", "2P", "3P", "TV", "FTTH", "HFC"]):
+                        if text not in items_facturacion:
+                            items_facturacion.append(text)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Advertencia al escanear celdas de productos sueltas: {e}")
+
+    datos["items_facturacion"] = items_facturacion
+
+    # 4. Mapeo normalizado a llaves estándar para el agente
     mapping = {
         "Numero Cuenta": "cuenta",
         "Nombre Cuenta": "nombre",
         "Teléfonos": "telefono",
         "Estatus": "estatus",
-        "Correo Electrónico": "email"
+        "Correo Electrónico": "email",
+        "Saldo Vencido": "saldo_vencido",
+        "Saldo Actual": "saldo_actual",
+        "Saldo Total": "saldo_total",
+        "Saldo": "saldo"
     }
+
     for k, v in list(datos.items()):
+        clean_k = _clean_label(k)
         for match_key, standard_key in mapping.items():
-            if match_key.lower() in k.lower() and standard_key not in datos:
+            if match_key.lower() in clean_k.lower() and standard_key not in datos:
                 datos[standard_key] = v
 
-    logger.info(f"✅ Datos obtenidos: {len(datos)} campos mapeados.")
+    logger.info(f"✅ Datos obtenidos: {len(datos)} campos mapeados, {len(items_facturacion)} ítems detectados.")
     return datos
 
 
@@ -308,6 +396,17 @@ def main_loop(driver):
                     p_cuenta = parts[0].strip()
                     p_tipo = parts[1].strip()
                     
+                    # 0) Resetear estado: regresar siempre al menú/pantalla principal antes de procesar pollution
+                    logger.info("🏠 Reseteando estado: Regresando a Página inicial antes de procesar Caso de Negocio...")
+                    home_tab = bucleEncuentraItemsLong(driver, xpath_home_tab)
+                    if home_tab:
+                        driver.execute_script("arguments[0].click();", home_tab)
+                        time.sleep(3)
+                        menu_tab = bucleEncuentraItemsLong(driver, xpath_pantalla_unica)
+                        if menu_tab:
+                            driver.execute_script("arguments[0].click();", menu_tab)
+                        time.sleep(3)
+
                     # 1) Buscar la cuenta en Siebel
                     bucleEncuentraItemsClick(driver, xpath_btn_consulta)
                     time.sleep(1)
@@ -341,31 +440,44 @@ def main_loop(driver):
                 else:
                     logger.error(f"Formato inválido en pollution_cte.txt: {content}")
 
-            # 1. Definir rutas físicas de señales normales
+            # 1. Definir rutas físicas de señales normales (revisar en rpa_signals/ y en la raíz del proyecto)
             cuenta_file = SIGNALS_DIR / "cuenta.txt"
+            if not cuenta_file.exists() and (_SCRIPT_DIR / "cuenta.txt").exists():
+                cuenta_file = _SCRIPT_DIR / "cuenta.txt"
+
             tel_file = SIGNALS_DIR / "tel.txt"
+            if not tel_file.exists() and (_SCRIPT_DIR / "tel.txt").exists():
+                tel_file = _SCRIPT_DIR / "tel.txt"
+
             nombre_file = SIGNALS_DIR / "nombre.txt"
+            if not nombre_file.exists() and (_SCRIPT_DIR / "nombre.txt").exists():
+                nombre_file = _SCRIPT_DIR / "nombre.txt"
             
             # Leer valores si existen
             cuenta_val = cuenta_file.read_text(encoding="utf-8").strip() if cuenta_file.exists() else None
             tel_val = tel_file.read_text(encoding="utf-8").strip() if tel_file.exists() else None
             nombre_val = nombre_file.read_text(encoding="utf-8").strip() if nombre_file.exists() else None
             
-            # Limpiar memoria de consulta si el archivo físico fue eliminado por la campaña
-            if not cuenta_val:
-                last_query["cuenta"] = None
-            if not tel_val:
-                last_query["tel"] = None
-            if not nombre_val:
-                last_query["nombre"] = None
-                
             hay_nueva_busqueda = False
             
             # 2. Evaluar prioridad de señales nuevas
-            if cuenta_val and cuenta_val != last_query["cuenta"]:
+            if cuenta_val:
                 logger.info(f"🎯 Nueva señal de CUENTA detectada: {cuenta_val}")
                 hay_nueva_busqueda = True
                 
+                # Consumir la señal para evitar bloqueos por valor duplicado y permitir futuras re-búsquedas
+                try:
+                    if cuenta_file.exists():
+                        cuenta_file.unlink()
+                except Exception as e:
+                    logger.error(f"Error borrando archivo de señal cuenta.txt: {e}")
+
+                # Asegurar estar en Pantalla Única de Consulta
+                menu_tab = bucleEncuentraItemsLong(driver, xpath_pantalla_unica)
+                if menu_tab:
+                    driver.execute_script("arguments[0].click();", menu_tab)
+                    time.sleep(2)
+
                 # Clic en Consulta (Lupa)
                 bucleEncuentraItemsClick(driver, xpath_btn_consulta)
                 time.sleep(1)
@@ -375,7 +487,7 @@ def main_loop(driver):
                     inp.clear()
                     inp.send_keys(cuenta_val)
                     inp.send_keys(Keys.RETURN)
-                    logger.info("🚀 Consulta de Cuenta enviada.")
+                    logger.info(f"🚀 Consulta de Cuenta ({cuenta_val}) enviada a Siebel.")
                     
                     last_query["cuenta"] = cuenta_val
                     last_query["tel"] = None
@@ -383,10 +495,22 @@ def main_loop(driver):
                 else:
                     logger.error("No se localizó el campo de entrada de Cuenta.")
                     
-            elif tel_val and tel_val != last_query["tel"]:
+            elif tel_val:
                 logger.info(f"🎯 Nueva señal de TELÉFONO detectada: {tel_val}")
                 hay_nueva_busqueda = True
                 
+                try:
+                    if tel_file.exists():
+                        tel_file.unlink()
+                except Exception as e:
+                    logger.error(f"Error borrando archivo de señal tel.txt: {e}")
+
+                # Asegurar estar en Pantalla Única de Consulta
+                menu_tab = bucleEncuentraItemsLong(driver, xpath_pantalla_unica)
+                if menu_tab:
+                    driver.execute_script("arguments[0].click();", menu_tab)
+                    time.sleep(2)
+
                 bucleEncuentraItemsClick(driver, xpath_btn_consulta)
                 time.sleep(1)
                 
@@ -397,7 +521,7 @@ def main_loop(driver):
                     inp.clear()
                     inp.send_keys(tel_val)
                     inp.send_keys(Keys.RETURN)
-                    logger.info("🚀 Consulta de Teléfono enviada.")
+                    logger.info(f"🚀 Consulta de Teléfono ({tel_val}) enviada a Siebel.")
                     
                     last_query["tel"] = tel_val
                     last_query["cuenta"] = None
@@ -405,10 +529,22 @@ def main_loop(driver):
                 else:
                     logger.error("No se localizó el campo de entrada de Teléfonos.")
                     
-            elif nombre_val and nombre_val != last_query["nombre"]:
+            elif nombre_val:
                 logger.info(f"🎯 Nueva señal de NOMBRE detectada: {nombre_val}")
                 hay_nueva_busqueda = True
                 
+                try:
+                    if nombre_file.exists():
+                        nombre_file.unlink()
+                except Exception as e:
+                    logger.error(f"Error borrando archivo de señal nombre.txt: {e}")
+
+                # Asegurar estar en Pantalla Única de Consulta
+                menu_tab = bucleEncuentraItemsLong(driver, xpath_pantalla_unica)
+                if menu_tab:
+                    driver.execute_script("arguments[0].click();", menu_tab)
+                    time.sleep(2)
+
                 bucleEncuentraItemsClick(driver, xpath_btn_consulta)
                 time.sleep(1)
                 
@@ -417,7 +553,7 @@ def main_loop(driver):
                     inp.clear()
                     inp.send_keys(nombre_val)
                     inp.send_keys(Keys.RETURN)
-                    logger.info("🚀 Consulta de Nombre enviada.")
+                    logger.info(f"🚀 Consulta de Nombre ({nombre_val}) enviada a Siebel.")
                     
                     last_query["nombre"] = nombre_val
                     last_query["cuenta"] = None

@@ -133,24 +133,40 @@ class VoiceAgent:
             logger.info("💳 [AMEX] Tools de formulario AMEX y catálogo RAG activadas.")
         elif self.campania_name == 'retencion':
             from tools.retencion_tools import (
-                guardar_cuenta_cliente,
-                guardar_telefono_cliente,
-                guardar_nombre_cliente,
-                guardar_tipo_cancelacion,
-                guardar_motivo_cancelacion,
+                generar_caso_negocio_siebel,
                 limpiar_senales,
-                obtener_datos_cliente,
+                limpiar_senales_rpa,
             )
-            extra_tools.extend([
-                guardar_cuenta_cliente,
-                guardar_telefono_cliente,
-                guardar_nombre_cliente,
-                guardar_tipo_cancelacion,
-                guardar_motivo_cancelacion,
-                limpiar_senales,
-                obtener_datos_cliente,
-            ])
-            logger.info("🎯 [Retención] Tools de retención registradas en el agente.")
+            nivel_retencion = self.campania_cfg.get('nivel_retencion', 0)
+            if str(nivel_retencion) == '0':
+                extra_tools.extend([
+                    generar_caso_negocio_siebel,
+                    limpiar_senales,
+                    limpiar_senales_rpa,
+                ])
+                logger.info("🚨 [Retención] MODO POLLUTION (Nivel 0) activo. Se registraron únicamente tools de Caso de Negocio/Pollution (Tools de búsqueda RPA desactivadas).")
+            else:
+                from tools.retencion_tools import (
+                    guardar_cuenta_cliente,
+                    guardar_telefono_cliente,
+                    guardar_nombre_cliente,
+                    guardar_tipo_cancelacion,
+                    guardar_motivo_cancelacion,
+                    obtener_datos_cliente,
+                )
+                extra_tools.extend([
+                    guardar_cuenta_cliente,
+                    guardar_telefono_cliente,
+                    guardar_nombre_cliente,
+                    guardar_tipo_cancelacion,
+                    guardar_motivo_cancelacion,
+                    limpiar_senales,
+                    limpiar_senales_rpa,
+                    obtener_datos_cliente,
+                    generar_caso_negocio_siebel,
+                    self.rag.consultar_informacion_retencion,
+                ])
+                logger.info(f"🎯 [Retención] Tools de retención Nivel {nivel_retencion} registradas (Tools de búsqueda RPA habilitadas).")
         elif self.campania_name == 'plata':
             from tools.plata_tools import (
                 crm_llenado,

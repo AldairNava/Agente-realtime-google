@@ -46,3 +46,11 @@ registro_de_llamadas/
 
 # Ejecutables locales
 chromedriver.exe
+
+# Señales temporales RPA
+**/rpa_signals/*.txt
+**/rpa_signals/*.json
+!**/rpa_signals/.gitkeep
+cuenta.txt
+tel.txt
+nombre.txt

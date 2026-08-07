@@ -152,3 +152,46 @@ class KnowledgeRAG:
             return "INFORMACIÓN OFICIAL PLATA CARD:\n\n" + "\n\n".join(mejores_matches[:3])
             
         return f"No encontré información específica sobre '{tema}' en el manual de Plata Card. Por favor, ofrece transferir la llamada con un compañero para resolver la duda detalladamente."
+
+    def consultar_informacion_retencion(self, consulta: str, nivel: int = 0) -> str:
+        """
+        Consulta la base de conocimiento oficial de la Campaña de Retención Izzi.
+        Úsalo cuando el cliente pregunte sobre procedimientos de precancelación, requisitos de sucursal,
+        beneficios de apps digitales, suspensión temporal, cambio de titularidad, renovaciones o cambio de domicilio (CDI).
+        """
+        logger.info(f"[RAG Engine] Consultando información de Retención para: '{consulta}' (Nivel activo: {nivel})")
+        
+        ret_data = self.db.get("retencion_knowledge.json", {})
+        if not ret_data:
+            return "Error: No se encontró la base de conocimiento de Retención Izzi."
+            
+        keywords = [k.lower().strip('¿?.,') for k in consulta.split() if len(k) > 2]
+        if not keywords:
+            keywords = [consulta.lower()]
+            
+        matches = []
+        
+        def _buscar_en_dict(d, prefix=""):
+            for k, v in d.items():
+                clave_full = f"{prefix} {k}".lower()
+                if isinstance(v, dict):
+                    _buscar_en_dict(v, clave_full)
+                elif isinstance(v, str):
+                    val_lower = v.lower()
+                    for kw in keywords:
+                        if kw in clave_full or kw in val_lower:
+                            entry = f"• {k.upper().replace('_', ' ')}: {v}"
+                            if entry not in matches:
+                                matches.append(entry)
+                            break
+        
+        _buscar_en_dict(ret_data)
+        
+        if matches:
+            return f"INFORMACIÓN OFICIAL RETENCIÓN IZZI (Nivel {nivel}):\n\n" + "\n\n".join(matches[:4])
+            
+        return (
+            f"No se encontró un procedimiento específico para '{consulta}' en el manual de Retención. "
+            "Revisa si el nivel de atención configurado cubre la solicitud o consulta con un ejecutivo supervisor."
+        )
+
