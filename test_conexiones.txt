@@ -1,0 +1,19 @@
+:: COMANDOS PARA PROBAR CONECTIVIDAD DEL AGENTE (Copiar y pegar en CMD)
+:: =====================================================================
+
+:: 1. Prueba básica de red local hacia el servidor Vicidial (Ping)
+ping 192.168.50.121
+
+:: 2. Probar conexión a la API de Google Gemini (Puerto 443)
+powershell -Command "Test-NetConnection -ComputerName generativelanguage.googleapis.com -Port 443"
+
+:: 3. Probar conexión a la Base de Datos Vicidial (Puerto 3306)
+powershell -Command "Test-NetConnection -ComputerName 192.168.50.121 -Port 3306"
+
+:: 4. Probar conexión a la telefonía SIP (Puerto 5060)
+powershell -Command "Test-NetConnection -ComputerName 192.168.50.121 -Port 5060"
+
+:: 5. Probar conexión a la API/Web de Vicidial (Puerto 80)
+powershell -Command "Test-NetConnection -ComputerName 192.168.50.121 -Port 80"
+
+:: NOTA: Si en alguno de los comandos 'powershell' ves 'TcpTestSucceeded : True', significa que el puerto está abierto y funcional.
