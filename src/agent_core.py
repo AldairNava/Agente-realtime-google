@@ -611,7 +611,7 @@ class VoiceAgent:
                 hour = now.hour
                 weekday = now.weekday()  # 0: Lunes, 1: Martes, ..., 4: Viernes, 5: Sábado, 6: Domingo
                 
-                # Configuración de horario de salida:
+                # Configuración de horario de salida (DESACTIVADA TEMPORALMENTE)
                 # - De lunes a viernes (weekday < 5): Desconexión a las 6:00 PM (18:00)
                 # - Sábados (weekday == 5) y domingos (weekday == 6): Desconexión a las 3:00 PM (15:00)
                 if weekday < 5:
@@ -619,7 +619,8 @@ class VoiceAgent:
                 else:
                     limit_hour = 15
                 
-                if hour >= limit_hour:
+                # LÍMITE DE HORARIO DESACTIVADO PARA PRUEBAS:
+                if False: # hour >= limit_hour:
                     logger.info(f"🕒 [Reloj] Horario de salida detectado ({limit_hour}:00 o posterior). Iniciando apagado y logout del agente...")
                     # Intentar pausar el agente vía API primero
                     api_cfg = self.tools_dispatcher.api
