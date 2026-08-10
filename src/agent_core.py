@@ -139,8 +139,20 @@ class VoiceAgent:
             )
             nivel_retencion = self.campania_cfg.get('nivel_retencion', 0)
             if str(nivel_retencion) == '0':
-                from tools.retencion_tools import obtener_datos_cliente
+                from tools.retencion_tools import (
+                    guardar_cuenta_cliente,
+                    guardar_telefono_cliente,
+                    guardar_nombre_cliente,
+                    guardar_tipo_cancelacion,
+                    guardar_motivo_cancelacion,
+                    obtener_datos_cliente
+                )
                 extra_tools.extend([
+                    guardar_cuenta_cliente,
+                    guardar_telefono_cliente,
+                    guardar_nombre_cliente,
+                    guardar_tipo_cancelacion,
+                    guardar_motivo_cancelacion,
                     generar_caso_negocio_siebel,
                     limpiar_senales,
                     limpiar_senales_rpa,
