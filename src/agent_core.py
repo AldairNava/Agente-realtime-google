@@ -84,7 +84,7 @@ class VoiceAgent:
         self.voice_cfg = {**self.full_cfg.get('common_settings', {}), **self.campania_cfg}
         
         # Especial: unificar vicidial_api para el ToolDispatcher en producción o pruebas
-        if self.execution_mode in ('produccion', 'pruebas'):
+        if self.execution_mode in ('produccion', 'pruebas') and self.campania_name != 'retencion':
             active_host = self.full_cfg.get('vicidial_api', {}).get('host', '192.168.50.121')
             
             self.voice_cfg['vicidial_api'] = {
@@ -94,7 +94,7 @@ class VoiceAgent:
             }
         else:
             self.voice_cfg['vicidial_api'] = None
-            logger.info("🛠️ [Local] Herramientas de Vicidial DESACTIVADAS por modo local.")
+            logger.info("🛠️ [Local/Retencion] Herramientas de Vicidial DESACTIVADAS.")
 
         # Inyectar interfaz de audio o usar local por defecto
         self.audio_interface = audio_interface or LocalAudioInterface(chunk=512)

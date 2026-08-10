@@ -477,9 +477,9 @@ async def main():
     if hasattr(signal, 'SIGBREAK'):
         signal.signal(signal.SIGBREAK, handle_signal)
 
-    if args.mode == "local" and args.campania == "retencion":
+    if args.campania == "retencion":
         import subprocess
-        logger.info("🚀 [Local] Iniciando procesos RPA de Retención...")
+        logger.info(f"🚀 [{args.mode.capitalize()}] Iniciando procesos RPA de Retención (Genesys y Siebel)...")
         try:
             log_ret = open("retencion_rpa_console.log", "w", encoding="utf-8")
             rpa_ret = subprocess.Popen(
