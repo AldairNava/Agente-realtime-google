@@ -164,6 +164,8 @@ async def main():
                         help="Usuario o agente con el que se logueará (ej: Plata3, Plata4, Virt1)")
     parser.add_argument("--vici-campania", type=str,
                         help="ID de la campaña en Vicidial (ej: pcardVir, TVVirt) si es distinta a la del agente")
+    parser.add_argument("--level", choices=["0", "1", "2", "3", "4"], default="0",
+                        help="Nivel de la campaña retencion (0-4)")
 
     parser.add_argument("--mode", choices=["local", "produccion", "pruebas"], default="local",
                         help="Entorno: 'local' (micro), 'produccion' (pyVoIP+Vicidial), 'pruebas' (Zoiper+Vicidial, sin SIP interno)")
@@ -514,6 +516,7 @@ async def main():
             campania=args.campania,
             voice_mode=args.voice,
             execution_mode=args.mode,
+            level=args.level,
             grabacion_txt=args.txt,
             grabacion_frase=args.frase,
             grabacion_salida=args.salida

@@ -42,12 +42,12 @@ class SafeLiveConnection:
 
 
 class VoiceAgent:
-    def __init__(self, api_key, audio_interface=None, campania='amex', voice_mode='hibrido', 
-                 execution_mode='local', grabacion_txt=None, grabacion_frase=None, grabacion_salida=None):
+    def __init__(self, api_key: str, campania: str, audio_interface=None, voice_mode: str = 'live', execution_mode: str = 'local', level: str = '0', grabacion_txt: str = None, grabacion_frase: str = None, grabacion_salida: str = None):
         
         self.campania_name = campania
         self.voice_mode = voice_mode
         self.execution_mode = execution_mode
+        self.level = str(level)
         self.grabacion_txt = grabacion_txt
         self.grabacion_frase = grabacion_frase
         self.grabacion_salida = grabacion_salida
@@ -137,7 +137,7 @@ class VoiceAgent:
                 limpiar_senales,
                 limpiar_senales_rpa,
             )
-            nivel_retencion = self.campania_cfg.get('nivel_retencion', 0)
+            nivel_retencion = self.level
             if str(nivel_retencion) == '0':
                 from tools.retencion_tools import (
                     guardar_cuenta_cliente,
@@ -1240,7 +1240,12 @@ class VoiceAgent:
     async def start(self):
         self.loop = asyncio.get_running_loop()
         vc = self.voice_cfg
-        ai = vc.get('agent_instructions', {})
+        
+        if self.campania_name == 'retencion':
+            levels = vc.get('levels', {})
+            ai = levels.get(self.level, {}).get('agent_instructions', vc.get('agent_instructions', {}))
+        else:
+            ai = vc.get('agent_instructions', {})
         
         # Construcción del Prompt (Modular o Variable Única)
         personality = (
