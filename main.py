@@ -52,7 +52,7 @@ def obtener_credenciales_agente(args):
     Determina el usuario del agente, su alias (extensión SIP) y el host activo (servidor)
     basado en los argumentos de la terminal (usuario y/o servidor) sin consultar base de datos.
     """
-    server_num = args.server
+    server_num = "1"
     user = args.user
     
     if user:
@@ -167,8 +167,7 @@ async def main():
 
     parser.add_argument("--mode", choices=["local", "produccion", "pruebas"], default="local",
                         help="Entorno: 'local' (micro), 'produccion' (pyVoIP+Vicidial), 'pruebas' (Zoiper+Vicidial, sin SIP interno)")
-    parser.add_argument("--server", choices=["1", "2"], default="1",
-                        help="Servidor Vicidial: '1' (192.168.50.121), '2' (192.168.50.66)")
+    # --server removido: el servidor se infiere dinámicamente según el --user proporcionado.
 
     parser.add_argument("--voice", choices=["live", "hibrido", "grabacion"], default="hibrido",
                         help="Modalidad de voz: 'live' (solo IA), 'hibrido' (IA + Pregrabados) o 'grabacion'")
@@ -186,6 +185,11 @@ async def main():
     args = parser.parse_args()
 
     rpa_processes = []
+
+    # Validación Modo Producción para campañas con Vicidial
+    if args.mode == "produccion" and args.campania != "retencion" and not args.user:
+        print('[ERROR] El modo producción requiere el argumento --user (ej: --user Plata3) para iniciar sesión en Vicidial.')
+        return
 
     # Validación Modo Grabación
     if args.voice == "grabacion":
