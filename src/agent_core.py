@@ -145,6 +145,7 @@ class VoiceAgent:
                     limpiar_senales,
                     limpiar_senales_rpa,
                     obtener_datos_cliente,
+                    self.rag.consultar_informacion_retencion,
                 ])
                 logger.info("🚨 [Retención] MODO POLLUTION (Nivel 0) activo. Se registraron únicamente tools de Caso de Negocio/Pollution (Tools de búsqueda RPA desactivadas).")
             else:
