@@ -139,10 +139,12 @@ class VoiceAgent:
             )
             nivel_retencion = self.campania_cfg.get('nivel_retencion', 0)
             if str(nivel_retencion) == '0':
+                from tools.retencion_tools import obtener_datos_cliente
                 extra_tools.extend([
                     generar_caso_negocio_siebel,
                     limpiar_senales,
                     limpiar_senales_rpa,
+                    obtener_datos_cliente,
                 ])
                 logger.info("🚨 [Retención] MODO POLLUTION (Nivel 0) activo. Se registraron únicamente tools de Caso de Negocio/Pollution (Tools de búsqueda RPA desactivadas).")
             else:
