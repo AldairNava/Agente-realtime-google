@@ -132,11 +132,7 @@ class VoiceAgent:
             ])
             logger.info("💳 [AMEX] Tools de formulario AMEX y catálogo RAG activadas.")
         elif self.campania_name == 'retencion':
-            from tools.retencion_tools import (
-                generar_caso_negocio_siebel,
-                limpiar_senales,
-                limpiar_senales_rpa,
-            )
+            from tools.retencion_tools import generar_caso_negocio_siebel, limpiar_senales
             nivel_retencion = self.level
             if str(nivel_retencion) == '0':
                 from tools.retencion_tools import (
@@ -145,7 +141,9 @@ class VoiceAgent:
                     guardar_nombre_cliente,
                     guardar_tipo_cancelacion,
                     guardar_motivo_cancelacion,
-                    obtener_datos_cliente
+                    obtener_datos_cliente,
+                    guardar_resumen_transferencia,
+                    colgar_llamada_genesis
                 )
                 extra_tools.extend([
                     guardar_cuenta_cliente,
@@ -154,12 +152,11 @@ class VoiceAgent:
                     guardar_tipo_cancelacion,
                     guardar_motivo_cancelacion,
                     generar_caso_negocio_siebel,
-                    limpiar_senales,
-                    limpiar_senales_rpa,
-                    obtener_datos_cliente,
-                    self.rag.consultar_informacion_retencion,
+                    self.obtener_datos_cliente_asincrono,
+                    guardar_resumen_transferencia,
+                    colgar_llamada_genesis
                 ])
-                logger.info("🚨 [Retención] MODO POLLUTION (Nivel 0) activo. Se registraron únicamente tools de Caso de Negocio/Pollution (Tools de búsqueda RPA desactivadas).")
+                logger.info("🚨 [Retención] MODO POLLUTION (Nivel 0) activo. Se registraron tools de enrutamiento y búsqueda asíncrona.")
             else:
                 from tools.retencion_tools import (
                     guardar_cuenta_cliente,
@@ -176,7 +173,6 @@ class VoiceAgent:
                     guardar_tipo_cancelacion,
                     guardar_motivo_cancelacion,
                     limpiar_senales,
-                    limpiar_senales_rpa,
                     obtener_datos_cliente,
                     generar_caso_negocio_siebel,
                     self.rag.consultar_informacion_retencion,
@@ -439,6 +435,89 @@ class VoiceAgent:
             await session.send_realtime_input(text=state_text)
         except Exception as e:
             logger.error(f"Error inyectando estado actual: {e}")
+
+    def obtener_datos_cliente_asincrono(self) -> dict:
+        """
+        Versión asíncrona inyectable de obtener_datos_cliente.
+        Avisa al sistema que inicie la búsqueda en segundo plano y le permite al agente seguir hablando.
+        """
+        import asyncio
+        if hasattr(self, 'loop') and self.loop:
+            self.loop.call_soon_threadsafe(
+                lambda: self.loop.create_task(self._bg_fetch_client_data())
+            )
+        else:
+            logger.error("❌ [BgTask] No se encontró el event loop principal en VoiceAgent.")
+            
+        return {
+            "status": "iniciado", 
+            "message": "Búsqueda en segundo plano iniciada. Puedes continuar platicando, el SISTEMA te avisará inyectándote los datos en cuanto estén listos."
+        }
+
+    async def _bg_fetch_client_data(self):
+        from tools.retencion_tools import SIGNALS_DIR, clasificar_perfil_cuenta
+        import json
+        import traceback
+        import asyncio
+        import re
+        
+        datos_path = SIGNALS_DIR / "datos_cliente.json"
+        max_attempts = 60 # 60 segundos
+        
+        prompt_fallo = (
+            "SISTEMA (URGENTE): El sistema no pudo cargar los datos del cliente (o están incompletos). "
+            "AHORA MISMO debes interrumpir lo que estés diciendo y decirle textualmente al cliente: "
+            "'Permítame un momento por favor, por el momento su cuenta no me carga en el sistema. Lo voy a transferir con un compañero especializado que le podrá ayudar.' "
+            "Después de decirle eso, llama a 'generar_caso_negocio_siebel' con tipo 'TRANSFERENCIA' y usa 'colgar_llamada_genesis'."
+        )
+        
+        logger.info("⏳ [BgTask] Iniciando búsqueda en segundo plano de datos_cliente.json...")
+        for _ in range(max_attempts):
+            if datos_path.exists():
+                try:
+                    content = datos_path.read_text(encoding="utf-8")
+                    datos = json.loads(content)
+                    
+                    # Validar si el JSON viene incompleto (sin nombre real o sin items)
+                    name_val = str(datos.get("Name", "")).strip()
+                    is_valid = False
+                    if name_val and not re.match(r'^\d+$', name_val):
+                        is_valid = True
+                    if len(datos.get("items_facturacion", [])) > 0:
+                        is_valid = True
+                        
+                    if not is_valid:
+                        logger.warning("⚠️ [BgTask] JSON de Siebel incompleto (probablemente no cargó bien). Ejecutando fallback de transferencia.")
+                        if getattr(self, 'session_active', False) and hasattr(self, 'session') and self.session:
+                            await self.session.send(input=prompt_fallo, end_of_turn=True)
+                        return
+                    
+                    perfil = clasificar_perfil_cuenta(datos)
+                    datos["perfil_cuenta"] = perfil
+                    
+                    datos_str = json.dumps(datos, ensure_ascii=False)
+                    
+                    prompt_inyectado = (
+                        f"SISTEMA (URGENTE): Los datos del cliente han sido encontrados por el sistema: {datos_str}. "
+                        "AHORA MISMO debes interrumpir lo que estés diciendo y confirmar el nombre del titular diciendo EXCACTAMENTE: "
+                        "'Ok muy bien, para poderle ayudar con su solicitud y proteger los datos de la cuenta me puede confirmar el nombre completo del titular por favor'"
+                    )
+                    
+                    # Enviar el prompt inyectado a Gemini a través de la sesión activa
+                    if getattr(self, 'session_active', False) and hasattr(self, 'session') and self.session:
+                        logger.info(f"💉 [BgTask] ¡Datos encontrados! Inyectando prompt al agente...")
+                        await self.session.send(input=prompt_inyectado, end_of_turn=True)
+                    else:
+                        logger.warning("⚠️ [BgTask] Datos encontrados pero no hay sesión activa de Gemini para inyectarlos.")
+                    return
+                except Exception as e:
+                    logger.error(f"❌ [BgTask] Error leyendo el JSON: {e}\n{traceback.format_exc()}")
+            await asyncio.sleep(1.0)
+            
+        logger.warning("⚠️ [BgTask] Tiempo de espera agotado buscando datos_cliente.json (60s). Ejecutando fallback.")
+        if getattr(self, 'session_active', False) and hasattr(self, 'session') and self.session:
+            logger.info("💉 [BgTask] Inyectando instrucción de fallo (timeout) al agente...")
+            await self.session.send(input=prompt_fallo, end_of_turn=True)
 
     def fijar_estatus_final(self, estatus: str):
         """Herramienta llamada por Gemini para marcar el resultado de la llamada sin colgar. Esta herramienta debe ser ejecutada obligatoriamente en cualquier script de salida o despedida donde se mencione 'Le atendió Liliana Hernández' para marcar y cerrar la llamada."""
@@ -1239,6 +1318,17 @@ class VoiceAgent:
 
     async def start(self):
         self.loop = asyncio.get_running_loop()
+        
+        # Limpiar archivo datos_cliente.json de llamadas anteriores
+        try:
+            from tools.retencion_tools import SIGNALS_DIR
+            datos_path = SIGNALS_DIR / "datos_cliente.json"
+            if datos_path.exists():
+                datos_path.unlink()
+                logger.info("🗑️ [Core] Archivo datos_cliente.json residual eliminado al inicio de la llamada.")
+        except Exception as e:
+            pass
+            
         vc = self.voice_cfg
         
         if self.campania_name == 'retencion':
@@ -1459,6 +1549,7 @@ class VoiceAgent:
 
                 try:
                     async with SafeLiveConnection(self.client.aio.live.connect(model=model, config=config)) as session:
+                        self.session = session
                         logger.info("✅ Conexión establecida con Gemini. Esperando llamada...")
                         
                         if self.campania_name == 'amex':
@@ -1480,12 +1571,19 @@ class VoiceAgent:
                             else:
                                 greeting_phrase = f"Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con {self.client_name}?"
                                 brand_info = ""
-                            
+                            if self.campania_name == 'retencion':
+                                print("\n" + "="*70)
+                                print("🛎️  PRESIONA [ENTER] AQUI EN LA CONSOLA PARA QUE EL AGENTE HABLE 🛎️")
+                                print("="*70 + "\n")
+                                await asyncio.to_thread(input)
+
                             logger.info(f"📢 [Local] Inyectando contexto de prueba para cliente: {self.client_name}")
                             self._greeting_triggered = True
                             self.greeting_trigger_time = asyncio.get_event_loop().time()
+                            
+                            cuenta_str = f" Cuenta: {self.client_cuenta}." if self.client_cuenta else ""
                             await session.send_realtime_input(
-                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name}. Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. {brand_info}]"
+                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name}. Teléfono: {self.client_phone}.{cuenta_str} IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti exactamente así: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]"
                             )
                         
                         async def monitor():

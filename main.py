@@ -485,17 +485,20 @@ async def main():
 
     if args.campania == "retencion":
         import subprocess
-        logger.info(f"🚀 [{args.mode.capitalize()}] Iniciando procesos RPA de Retención (Genesys y Siebel)...")
+        logger.info(f"🚀 [{args.mode.capitalize()}] Iniciando procesos RPA de Retención...")
         try:
-            log_ret = open("retencion_rpa_console.log", "w", encoding="utf-8")
-            rpa_ret = subprocess.Popen(
-                [sys.executable, "tools/retencion_rpa.py", "--test"],
-                cwd=os.path.dirname(os.path.abspath(__file__)),
-                stdout=log_ret,
-                stderr=subprocess.STDOUT
-            )
-            rpa_processes.append(rpa_ret)
-            logger.info("✅ [Local] RPA Retención (izzi.local) iniciado (Log: retencion_rpa_console.log).")
+            if str(args.level) != "0":
+                log_ret = open("retencion_rpa_console.log", "w", encoding="utf-8")
+                rpa_ret = subprocess.Popen(
+                    [sys.executable, "tools/retencion_rpa.py", "--test"],
+                    cwd=os.path.dirname(os.path.abspath(__file__)),
+                    stdout=log_ret,
+                    stderr=subprocess.STDOUT
+                )
+                rpa_processes.append(rpa_ret)
+                logger.info("✅ [Local] RPA Retención (izzi.local) iniciado (Log: retencion_rpa_console.log).")
+            else:
+                logger.info("⏩ [Local] Nivel 0 detectado. Omitiendo RPA de Genesys (izzi.local), iniciando solo Siebel.")
             
             log_siebel = open("siebel_retencion_rpa_console.log", "w", encoding="utf-8")
             rpa_siebel = subprocess.Popen(

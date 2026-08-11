@@ -316,6 +316,44 @@ def generar_caso_negocio_siebel(cuenta: str, tipo_caso: str) -> dict:
     
     return _write_pollution(str(cuenta).strip(), str(tipo_caso).strip())
 
+def guardar_resumen_transferencia(cuenta: str, resumen: str) -> dict:
+    """
+    Guarda un resumen del motivo por el cual el cliente está siendo transferido
+    cuando el agente no tiene la información o la solicitud está fuera de su alcance.
+    
+    Args:
+        cuenta: Número de cuenta del cliente.
+        resumen: Explicación breve de qué buscaba el cliente y por qué se le transfiere.
+    """
+    if not cuenta or not str(cuenta).strip():
+        return {"status": "error", "message": "El número de cuenta no puede estar vacío."}
+    
+    resumen_file = SIGNALS_DIR / "resumen.txt"
+    try:
+        SIGNALS_DIR.mkdir(exist_ok=True)
+        resumen_file.write_text(f"Cuenta: {cuenta}\nResumen: {resumen}", encoding="utf-8")
+        logger.info(f"📝 [RetencionTools] Resumen de transferencia guardado para {cuenta}.")
+        return {"status": "ok", "message": "Resumen guardado exitosamente."}
+    except Exception as e:
+        logger.error(f"❌ [RetencionTools] Error escribiendo resumen.txt: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+def colgar_llamada_genesis() -> dict:
+    """
+    Envía una señal para que el RPA de Genesis cuelgue la llamada actual.
+    Debe llamarse al final de la interacción.
+    """
+    try:
+        SIGNALS_DIR.mkdir(exist_ok=True)
+        colgar_file = SIGNALS_DIR / "colgar.txt"
+        colgar_file.write_text("COLGAR", encoding="utf-8")
+        logger.info("📞 [RetencionTools] Señal de colgado (colgar.txt) enviada al RPA de Genesis.")
+        return {"status": "ok", "message": "Señal de colgado enviada."}
+    except Exception as e:
+        logger.error(f"❌ [RetencionTools] Error escribiendo colgar.txt: {e}")
+        return {"status": "error", "message": str(e)}
+
 
 # ---------------------------------------------------------------------------
 # Utilidades internas
@@ -518,6 +556,41 @@ TOOL_DEFINITIONS = [
             "required": ["cuenta", "tipo_caso"]
         },
         "fn": generar_caso_negocio_siebel,
+    },
+    {
+        "name": "guardar_resumen_transferencia",
+        "description": (
+            "Guarda un resumen del motivo por el cual se está transfiriendo al cliente. "
+            "Úsala obligatoriamente cuando el cliente pide información que no tienes o no le puedes resolver."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "cuenta": {
+                    "type": "string",
+                    "description": "Número de cuenta del cliente."
+                },
+                "resumen": {
+                    "type": "string",
+                    "description": "Breve resumen de lo que el cliente quería y por qué se transfiere."
+                }
+            },
+            "required": ["cuenta", "resumen"]
+        },
+        "fn": guardar_resumen_transferencia,
+    },
+    {
+        "name": "colgar_llamada_genesis",
+        "description": (
+            "Cuelga la llamada actual enviando una señal al sistema Genesis. "
+            "Úsala siempre como la ÚLTIMA herramienta para despedirte y terminar la llamada en Nivel 0."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        },
+        "fn": colgar_llamada_genesis,
     },
 ]
 
