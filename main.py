@@ -490,7 +490,7 @@ async def main():
             if str(args.level) != "0":
                 log_ret = open("retencion_rpa_console.log", "w", encoding="utf-8")
                 rpa_ret = subprocess.Popen(
-                    [sys.executable, "tools/retencion_rpa.py", "--test"],
+                    [sys.executable, "tools/retencion/retencion_rpa.py", "--test"],
                     cwd=os.path.dirname(os.path.abspath(__file__)),
                     stdout=log_ret,
                     stderr=subprocess.STDOUT
@@ -502,7 +502,7 @@ async def main():
             
             log_siebel = open("siebel_retencion_rpa_console.log", "w", encoding="utf-8")
             rpa_siebel = subprocess.Popen(
-                [sys.executable, "tools/siebel_retencion_rpa.py", "--test"],
+                [sys.executable, "tools/retencion/siebel_retencion_rpa.py", "--test"],
                 cwd=os.path.dirname(os.path.abspath(__file__)),
                 stdout=log_siebel,
                 stderr=subprocess.STDOUT

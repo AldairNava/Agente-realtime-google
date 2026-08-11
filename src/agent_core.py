@@ -12,7 +12,7 @@ from .audio_interfaces.local_audio import LocalAudioInterface
 from .vad_processor import VADProcessor
 from .audio_router import AudioRouter
 from tools.dispatcher import ToolDispatcher
-from tools.amex_form import AMEXFormHandler
+from tools.amex.amex_form import AMEXFormHandler
 from .audio_recorder import AudioRecorder, AgentVoiceCapture
 
 logger = logging.getLogger(__name__)
@@ -132,10 +132,10 @@ class VoiceAgent:
             ])
             logger.info("💳 [AMEX] Tools de formulario AMEX y catálogo RAG activadas.")
         elif self.campania_name == 'retencion':
-            from tools.retencion_tools import generar_caso_negocio_siebel, limpiar_senales
+            from tools.retencion.retencion_tools import generar_caso_negocio_siebel, limpiar_senales
             nivel_retencion = self.level
             if str(nivel_retencion) == '0':
-                from tools.retencion_tools import (
+                from tools.retencion.retencion_tools import (
                     guardar_cuenta_cliente,
                     guardar_telefono_cliente,
                     guardar_nombre_cliente,
@@ -158,7 +158,7 @@ class VoiceAgent:
                 ])
                 logger.info("🚨 [Retención] MODO POLLUTION (Nivel 0) activo. Se registraron tools de enrutamiento y búsqueda asíncrona.")
             else:
-                from tools.retencion_tools import (
+                from tools.retencion.retencion_tools import (
                     guardar_cuenta_cliente,
                     guardar_telefono_cliente,
                     guardar_nombre_cliente,
@@ -179,7 +179,7 @@ class VoiceAgent:
                 ])
                 logger.info(f"🎯 [Retención] Tools de retención Nivel {nivel_retencion} registradas (Tools de búsqueda RPA habilitadas).")
         elif self.campania_name == 'plata':
-            from tools.plata_tools import (
+            from tools.plata.plata_tools import (
                 crm_llenado,
                 codigo_txt,
                 limpiar_senales_plata
@@ -455,7 +455,7 @@ class VoiceAgent:
         }
 
     async def _bg_fetch_client_data(self):
-        from tools.retencion_tools import SIGNALS_DIR, clasificar_perfil_cuenta
+        from tools.retencion.retencion_tools import SIGNALS_DIR, clasificar_perfil_cuenta
         import json
         import traceback
         import asyncio
@@ -1321,7 +1321,7 @@ class VoiceAgent:
         
         # Limpiar archivo datos_cliente.json de llamadas anteriores
         try:
-            from tools.retencion_tools import SIGNALS_DIR
+            from tools.retencion.retencion_tools import SIGNALS_DIR
             datos_path = SIGNALS_DIR / "datos_cliente.json"
             if datos_path.exists():
                 datos_path.unlink()
@@ -1666,10 +1666,18 @@ class VoiceAgent:
                                             self._greeting_triggered = True
                                             self.greeting_trigger_time = asyncio.get_event_loop().time()
                                             
-                                            logger.info("📢 [IA] Enviando saludo rápido inicial (sin demoras)...")
-                                            await session.send_realtime_input(
-                                                text="[SISTEMA: LLAMADA CONECTADA. Di de viva voz únicamente y de forma exacta: 'Hola, hola buenas tardes.'. Está ESTRICTAMENTE PROHIBIDO agregar palabras adicionales, muletillas o variaciones. Di exactamente esa frase y después espera en silencio absoluto.]"
-                                            )
+                                            if self.campania_name == 'retencion':
+                                                greeting_phrase = "Buen día, gracias por llamar a cuentas especiales izzi, ¿con quién tengo el gusto?"
+                                                brand_info = "Te identificas como de Cuentas Especiales de Izzi."
+                                                logger.info("📢 [IA] Enviando saludo inicial para Retención...")
+                                                await session.send_realtime_input(
+                                                    text=f"[SISTEMA: Llamada conectada. Teléfono: {phone_number}. IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti exactamente así: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]"
+                                                )
+                                            else:
+                                                logger.info("📢 [IA] Enviando saludo rápido inicial (sin demoras)...")
+                                                await session.send_realtime_input(
+                                                    text="[SISTEMA: LLAMADA CONECTADA. Di de viva voz únicamente y de forma exacta: 'Hola, hola buenas tardes.'. Está ESTRICTAMENTE PROHIBIDO agregar palabras adicionales, muletillas o variaciones. Di exactamente esa frase y después espera en silencio absoluto.]"
+                                                )
                                             
                                             if self.voice_mode != 'grabacion':
                                                 tasks.append(asyncio.create_task(self._silence_watchdog(session)))
@@ -1719,7 +1727,7 @@ class VoiceAgent:
                                                 
                                             self.client_name = f"{first_name} {last_name}".strip()
                                             
-                                            if self.campania_name in ['plata']:
+                                            if self.campania_name in ['plata', 'retencion']:
                                                 # Enviar los datos del cliente de forma silenciosa para el contexto del agente, sin forzar la segunda frase de inmediato
                                                 is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
                                                 self.client_name = f"{first_name} {last_name}".strip() if is_valid_name else ""
@@ -1727,8 +1735,8 @@ class VoiceAgent:
                                                 context_text = (
                                                     f"[SISTEMA: INFORMACIÓN DE LA LLAMADA. Nombre del cliente: {self.client_name or 'Desconocido'}. "
                                                     f"Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. "
-                                                    f"REGLA: La llamada ya inició y dijiste de viva voz 'Hola, hola buenas tardes.'. Ahora debes esperar la respuesta "
-                                                    f"del cliente y continuar la plática de acuerdo con tu guía de conversación para verificar el titular. {brand_info}]"
+                                                    f"REGLA: La llamada ya inició y ya dijiste de viva voz tu saludo inicial. Ahora debes esperar la respuesta "
+                                                    f"del cliente y continuar la plática de acuerdo con tu guía de conversación. {brand_info}]"
                                                 )
                                                 logger.info(f"📢 [Monitor] Inyectando contexto de {self.campania_name}: {context_text}")
                                                 await session.send_realtime_input(text=context_text)
@@ -1820,7 +1828,7 @@ class VoiceAgent:
                                     
                                     if self.campania_name == 'retencion' and getattr(self, 'client_cuenta', None):
                                         logger.warning(f"⚠️ [Core] Llamada de retención cortada abruptamente (cuenta {self.client_cuenta}). Registrando 'SE CORTA LLAMADA'.")
-                                        from tools.retencion_tools import _write_pollution
+                                        from tools.retencion.retencion_tools import _write_pollution
                                         try:
                                             await asyncio.to_thread(_write_pollution, self.client_cuenta, "SE CORTA LLAMADA")
                                         except Exception as e:

@@ -1,9 +1,0 @@
-ping 192.168.50.121
-ping 192.168.50.66
-ping 192.168.50.33
-ping retencion-rpa.izzi.local
-ping crm.izzi.mx
-ping generativelanguage.googleapis.com
-ping storage.googleapis.com
-ping chromewebstore.google.com
-ping api.telegram.org

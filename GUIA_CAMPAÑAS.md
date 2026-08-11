@@ -16,7 +16,7 @@ Añade un nuevo bloque en la sección `"campaigns"`:
 "plata": {
     "name": "Campaña Plata",
     "scripts_file": "assets/plata/scripts.json",
-    "recording_dir": "assets/plata/recordings",
+    "recording_dir": "assets/plata/llamadas_grabadas",
     "voice": { "name": "Kore", "speed": "rápido" },
     "emotion": { "base_tone": "profesional", "energy_level": "medio" },
     "vicidial_api": {
@@ -34,8 +34,12 @@ Añade un nuevo bloque en la sección `"campaigns"`:
 }
 ```
 
-### Paso C: Crear la carpeta de audios (Opcional)
-El sistema creará automáticamente la carpeta definida en `"recording_dir"` la primera vez que ejecuten el comando de grabación para esa campaña.
+### Paso C: Estructura de la carpeta
+El sistema espera y creará (si no existen) las siguientes subcarpetas dentro de `assets/<nombre_campaña>/`:
+- `llamadas_grabadas/`: Aquí se guardarán los `.wav` y `.mp3` de las llamadas reales en vivo.
+- `audios_pregrabados/`: Aquí se guardan los audios de la IA que usarás en modo Híbrido.
+- `rag_docs/`: Documentos o PDFs para la Base de Conocimientos de la campaña.
+- `rpa_signals/`: Archivos `.txt` para comunicar al agente con otros bots (Genesys/Siebel).
 
 ---
 

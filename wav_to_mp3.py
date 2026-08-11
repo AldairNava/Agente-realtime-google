@@ -17,10 +17,8 @@ def convertir_wav_a_mp3(ruta_wav: str):
         print(f"[ERROR] El archivo no es un WAV: {ruta_wav}")
         sys.exit(1)
 
-    # Carpeta de salida: recordings/mp3/ relativa a este script
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    carpeta_mp3 = os.path.join(base_dir, "recordings", "mp3")
-    os.makedirs(carpeta_mp3, exist_ok=True)
+    # Carpeta de salida: la misma carpeta donde está el archivo WAV
+    carpeta_mp3 = os.path.dirname(os.path.abspath(ruta_wav))
 
     # Nombre del archivo de salida
     nombre_sin_ext = os.path.splitext(os.path.basename(ruta_wav))[0]
