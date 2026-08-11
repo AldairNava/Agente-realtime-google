@@ -633,6 +633,10 @@ class VoiceAgent:
 
     async def _network_watchdog(self):
         """Monitorea la conectividad de red con el servidor Vicidial para detectar micro-cortes."""
+        if self.campania_name == 'retencion':
+            logger.info("📡 [Watchdog Red] Omitido para la campaña de retención.")
+            return
+
         api_cfg = getattr(self, 'tools_dispatcher', None) and getattr(self.tools_dispatcher, 'api', None)
         if not api_cfg or not getattr(api_cfg, 'url', None):
             logger.info("📡 [Watchdog Red] Sin configuración de API de Vicidial. Monitoreo omitido.")
