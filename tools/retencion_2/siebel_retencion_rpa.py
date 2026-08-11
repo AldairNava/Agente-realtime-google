@@ -111,7 +111,7 @@ def iniciarDriver(headless: bool = False):
         # Usar chromedriver local si existe
         from selenium.webdriver.chrome.service import Service
         driver_path = _SCRIPT_DIR.parent / "chromedriver.exe"
-
+        
         if perfil_nuevo:
             logger.warning("=" * 80)
             logger.warning("❌ PERFIL DE CHROME NUEVO DETECTADO (SIEBEL)")
@@ -127,7 +127,7 @@ def iniciarDriver(headless: bool = False):
             else:
                 logger.info("🌐 Iniciando Chrome usando Selenium Manager...")
                 driver = webdriver.Chrome(options=chrome_options)
-
+            
             driver.maximize_window()
             extension_url = "https://chromewebstore.google.com/detail/rpa-extension/ccilojpjnmepojkjkdpohdkbjpkfoojd"
             logger.info(f"📦 Navegando a la Chrome Web Store: {extension_url}")

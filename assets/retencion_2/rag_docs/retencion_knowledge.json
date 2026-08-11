@@ -1,0 +1,96 @@
+{
+  "tarifas_estandar": {
+    "residencial": {
+      "60MB_100_canales": { "2P": 389, "3P": 539 },
+      "80MB_100_canales": { "2P": 480, "3P": 630 },
+      "100MB_200_canales": { "2P": 540, "3P": 720 },
+      "120MB_200_canales": { "2P": 570, "3P": 750 },
+      "150MB_200_canales": { "2P": 640, "3P": 820 },
+      "200MB_200_canales": { "2P": 700, "3P": 880 },
+      "500MB_200_canales": { "2P": 820, "3P": 1000 },
+      "1000MB_200_canales": { "2P": 1020, "3P": 1200 }
+    },
+    "negocios": {
+      "80MB": { "2P": 530, "3P": 710 },
+      "100MB": { "2P": 590, "3P": 770 },
+      "120MB": { "2P": 620, "3P": 800 },
+      "150MB": { "2P": 690, "3P": 870 },
+      "200MB": { "2P": 750, "3P": 930 },
+      "500MB": { "2P": 870, "3P": 1050 },
+      "1000MB": { "2P": 1070, "3P": 1250 }
+    }
+  },
+  "promo_rete_exclusivas": {
+    "60MB_menor_1_ano": { "2P": 329, "3P": 470, "aplica": "Clientes con antigüedad menor a 1 año" },
+    "80MB": { "2P": 380, "3P": 530, "aplica": "Recomendado para clientes de 100M y Cero" },
+    "100MB": { "2P": 429, "3P": 609, "aplica": "Promoción intermedia" },
+    "150MB": { "2P": 500, "3P": 650, "aplica": "Recomendado para clientes de 100M y Cero" }
+  },
+  "reglas_negocio_retencion": {
+    "definicion_paquetes": {
+      "2P": "Doble Play (Internet + Telefonía)",
+      "3P": "Triple Play (Internet + Telefonía + Televisión izzi TV)"
+    },
+    "regla_respeto_producto": "Se debe respetar la modalidad que el cliente tiene actualmente (2P o 3P) reduciendo únicamente la velocidad de Megas para ofrecer un costo menor. La PRIMERA opción a ofrecer siempre debe ser de la tabla PROMO RETE.",
+    "escenario_servicios_adicionales": "Si el cliente quiere cancelar únicamente un servicio adicional (Netflix, HBO, ViX, etc.), NO aplica oferta de retención. Se trata como POLLUTION con caso TRANSFERENCIA indicándole marcar a soporte.",
+    "escenario_cancelar_television": "Si el cliente desea cancelar solo la televisión para quedarse en 2P: 1) Intentar retenerlo ofreciendo mantener 3P bajando megas (PROMO RETE 3P). Si acepta -> RETENIDO. 2) Si insiste en quitar televisión, NO se le pueden dar promociones PROMO RETE 2P. Si acepta un paquete 2P Estándar -> NO RETENIDO.",
+    "escenario_cancelar_todo_o_internet": "Si desea cancelar todo o internet: 1) Ofrecer reducciones de Megas con PROMO RETE respetando su producto (2P o 3P). Si acepta -> RETENIDO. 2) Si rechaza PROMO RETE pero acepta un 2P Estándar -> NO RETENIDO. 3) Si rechaza todo -> Dar folio de precancelación e instrucciones de devolución de equipos -> NO RETENIDO.",
+    "escenario_fallas_tecnicas": "Aparte de ofrecer visita de técnico sin costo, ofrecer paquete menor de PROMO RETE para reducir el costo mientras se resuelve la falla.",
+    "regla_telefonia_integrada": "La telefonía fija NO se puede cancelar de forma individual ni por separado porque viene integrada sin costo adicional en el paquete de Internet (2P). Si el cliente solicita cancelar solo la telefonía, explícale que la línea telefónica viene incluida de regalo con el servicio de internet y no genera ningún cargo extra por mantenerse activa.",
+    "casos_especificos_retencion": {
+      "DATOS DE LA CUENTA": "Se utiliza para dar de alta un número telefónico para gestionar proceso de No Retenido o para agregar datos sobre una Visita Técnica.",
+      "PERFIL DE PAGO": "Se utiliza para generar la baja de la tarjeta de crédito/débito (TDC) con la cual se domicilió en algún momento el pago del servicio.",
+      "NAP SATURADO VALIDACION": "Caso administrativo para validar si es posible generar la instalación de un cambio de servicios.",
+      "INCONSISTENCIA": "Caso administrativo que se genera cuando la orden de servicios presenta alguna anomalía que no permite avanzar con el proceso."
+    }
+  },
+  "nivel_0_modo_minimo_callback": {
+    "script_callback": "Por el momento no hay especialistas disponibles. Hemos registrado sus datos y su necesidad, y un ejecutivo especializado le regresará la llamada lo antes posible.",
+    "atencion_despacho": "Atender solo consultas simples de información o transferencias a soporte. Para negociaciones complejas o precancelación, recopilar cuenta, teléfono, nombre del titular y motivo, leer el script de callback y registrar Caso de Negocio CALLBACK_PENDIENTE en Siebel."
+  },
+  "nivel_1_flujos_faciles": {
+    "titularidad": "Titular Persona Física o Contacto Registrado Persona Moral pueden hacer trámites. Terceros solo reciben información general.",
+    "regla_adeudo_131": "Si el adeudo es mayor a $131 MXN (y no proviene de fallas), NO se puede dar el proceso de precancelación ni folio hasta que realice el pago.",
+    "requisitos_sucursal": {
+      "titular_residencial": "Identificación oficial vigente (o vencida máx 1 año), saldo en $0 y entregar el 100% de los equipos (módem, decodificador, control, cables).",
+      "tercero_residencial": "Misma documentación e historial de equipos, sumando Carta Poder Simple e identificación oficial de ambas personas.",
+      "negocios": "Acta Constitutiva / Poder Notarial e Identificación del Apoderado o Contacto."
+    },
+    "vigencia_folio": "El folio de precancelación tiene una vigencia de 30 días naturales. Sugerir acudir a sucursal antes de su siguiente fecha de corte.",
+    "apps_y_beneficios_digitales": {
+      "izzi_app": "Consulta saldo, descarga estados de cuenta, cambia nombre/clave Wi-Fi y conecta a izzi Spots.",
+      "izzi_go": "TV en vivo (100+ canales), contenido On Demand, pausar y regresar programación hasta 7 días atrás desde cel, PC o Apple TV.",
+      "linea_izzi_app": "Llevar la línea fija al teléfono móvil para hacer y recibir llamadas (hasta 5 dispositivos simultáneos).",
+      "izzi_spot": "Red pública encriptada de Wi-Fi seguro en todo el país (acceso vía izzi app)."
+    }
+  },
+  "nivel_2_flujos_intermedios": {
+    "renovacion_plazo_6m": "Aplica a clientes SIN plazo forzoso vigente en servicios fijos. Modalidad Sin Beneficios (congelar precio 6m) o Con Beneficios (descuentos/extensor gratis). CN: SERVICIOS -> MOD AL CONTRATO -> RENOVACION PLAZO FORZOSO -> SIN BENEFICIOS / CON BENEFICIOS.",
+    "certificados_descuento": "Ajustes de $100, $200 o $300 MXN según antigüedad/segmento AC 493. Nota obligatoria en comentarios: 'Certificado de descuento Retención $[Monto]'.",
+    "condonacion_cargos_unicos": "Ajuste de visita técnica o cargo por pago tardío. Comentario obligatorio: 'Se ajusta cargo único [Nombre del cargo] por acuerdo de retención'.",
+    "suspension_temporal": "Pausa del servicio por hasta 60 días naturales (saldo $0, sin suspensión previa en 12 meses, min 1 ciclo completado). Solicitar INE y celular. CN: SOLICITUD DE CANCELACION -> ECONOMICO (escalar a BO)."
+  },
+  "nivel_3_flujos_complejos": {
+    "cambio_titularidad": "Cesión de derechos (titular presente en sucursal) vs Adhesión (cambio domicilio/defunción). En fallecimiento <2 meses: retención, adhesión en sucursal y condonación de hasta 2 meses. Fallecimiento >2 meses: sin retención, CN Informativo.",
+    "downgrade_downsale": "Downgrade (bajar megas sin quitar RGU) / Downsale (cancelar RGU, ej. 3P a 2P). En Legos/Legacy agregar nota obligatoria en CN: 'Baja de RGU de [Video/Internet], por forma de trabajo de Downsale discriminar/ajustar penalización'."
+  },
+  "nivel_4_operaciones_avanzadas": {
+    "troubleshooting_pst": "Descartar falla general, reset físico 30s + fábrica, portal PST (pst.izzi.mx). Visita técnica (TC): Script obligatorio (Número de Orden, Fecha/Horario, técnico uniformado con gafete) y activar flag SMS/WhatsApp en PUA.",
+    "cdi_interciudad": {
+      "ciudad_a_ciudad": "Distintos RPTs. Cancelar en sucursal origen, pagar penalidad (conservar ticket), recontratar en <3 meses y presentar ticket en nueva sucursal para abonar saldo a favor.",
+      "ciudad_frontera": "CDMX Metro y EdoMex. NO cancelar cuenta origen primero. Instalar servicio en nuevo domicilio y luego acudir a sucursal origen con la OS nueva para cancelar sin penalidad.",
+      "wizz_pm": "Requiere pago anticipado de suscripción ($100 MXN mínimo)."
+    }
+  },
+  "clasificacion_puerto_y_portafolio": {
+    "modular": "Los ítems finalizan con la letra 'M' (ej. izzitv HD M, Internet 100 M).",
+    "lego_axtel": "Los ítems incluyen la palabra 'AXT' o 'AXTEL'.",
+    "wizz_pm": "Los ítems incluyen 'wizz' o 'UNESCO'.",
+    "legacy": "Ítems antiguos en mayúsculas/minúsculas sin la palabra 'izzi' (ej. Paquete Basico Digital). Requieren 'Actualizar Oferta'.",
+    "masivo_wow": "Ítems estándar izzi / NextGen.",
+    "tecnologia_ftth": "Los ítems inician con 'L ' o 'LN ' (ej. L IZZI TELEFONIA FTTH). Requiere migración forzosa FTTH con cambio de equipos.",
+    "tecnologia_hfc": "Coaxial estándar.",
+    "segmento_negocios": "Los ítems incluyen la palabra 'Negocios'. Requiere apoderado legal con Poder/Acta.",
+    "segmento_residencial": "Uso doméstico."
+  }
+}

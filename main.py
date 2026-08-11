@@ -471,17 +471,7 @@ async def main():
     import atexit
     atexit.register(cleanup_rpas)
 
-    import signal
-    import sys
-    def handle_signal(signum, frame):
-        logger.warning(f"⚠️ Proceso principal recibió señal {signum}. Limpiando y saliendo...")
-        cleanup_rpas()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
-    if hasattr(signal, 'SIGBREAK'):
-        signal.signal(signal.SIGBREAK, handle_signal)
+    # Dejamos que asyncio maneje KeyboardInterrupt nativamente.
 
     if args.campania == "retencion":
         import subprocess
@@ -511,6 +501,22 @@ async def main():
             logger.info("✅ [Local] RPA Siebel Retención iniciado (Log: siebel_retencion_rpa_console.log).")
         except Exception as e:
             logger.error(f"❌ [Local] Error al iniciar sub-procesos RPA: {e}")
+
+    if args.campania == "retencion_2":
+        import subprocess
+        logger.info(f"🚀 [{args.mode.capitalize()}] Iniciando procesos RPA de Retención 2...")
+        try:
+            log_siebel_2 = open("siebel_retencion_2_rpa_console.log", "w", encoding="utf-8")
+            rpa_siebel_2 = subprocess.Popen(
+                [sys.executable, "tools/retencion_2/siebel_retencion_rpa.py", "--test"],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                stdout=log_siebel_2,
+                stderr=subprocess.STDOUT
+            )
+            rpa_processes.append(rpa_siebel_2)
+            logger.info("✅ [Local] RPA Siebel Retención 2 iniciado (Log: siebel_retencion_2_rpa_console.log).")
+        except Exception as e:
+            logger.error(f"❌ [Local] Error al iniciar RPA de Retención 2: {e}")
 
     try:
         agent = VoiceAgent(

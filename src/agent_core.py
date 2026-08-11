@@ -178,6 +178,29 @@ class VoiceAgent:
                     self.rag.consultar_informacion_retencion,
                 ])
                 logger.info(f"🎯 [Retención] Tools de retención Nivel {nivel_retencion} registradas (Tools de búsqueda RPA habilitadas).")
+        elif self.campania_name == 'retencion_2':
+            from tools.retencion_2.retencion_tools import (
+                guardar_cuenta_cliente,
+                guardar_telefono_cliente,
+                guardar_nombre_cliente,
+                guardar_tipo_cancelacion,
+                guardar_motivo_cancelacion,
+                obtener_datos_cliente,
+                generar_caso_negocio_siebel,
+                limpiar_senales
+            )
+            extra_tools.extend([
+                guardar_cuenta_cliente,
+                guardar_telefono_cliente,
+                guardar_nombre_cliente,
+                guardar_tipo_cancelacion,
+                guardar_motivo_cancelacion,
+                limpiar_senales,
+                obtener_datos_cliente,
+                generar_caso_negocio_siebel,
+                self.rag.consultar_informacion_retencion,
+            ])
+            logger.info("🎯 [Retención 2] Tools de retención registradas con integración Vicidial activa.")
         elif self.campania_name == 'plata':
             from tools.plata.plata_tools import (
                 crm_llenado,
