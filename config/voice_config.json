@@ -1,10 +1,10 @@
 {
     "vicidial_hosts": {
         "pruebas": "192.168.50.66",
-        "produccion": "192.168.50.121"
+        "produccion": "192.168.50.61"
     },
     "vicidial_api": {
-        "host": "192.168.50.121"
+        "host": "192.168.50.61"
     },
     "campaigns": {
         "amex": {

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import logging
 import argparse
 from dotenv import load_dotenv
@@ -67,7 +68,7 @@ def obtener_credenciales_agente(args):
             server_num = "1"
 
     # Servidor activo
-    active_host = "192.168.50.66" if server_num == "2" else "192.168.50.121"
+    active_host = "192.168.50.66" if server_num == "2" else "192.168.50.61"
 
     if not user:
         if server_num == "2":
@@ -332,12 +333,12 @@ async def main():
                 
                 # Ajuste dinámico de campaign_id según el servidor asignado
                 if args.campania == 'plata':
-                    if active_host == "192.168.50.121":
+                    if active_host == "192.168.50.61":
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
                     else:
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "pcardVir"
                 elif args.campania == 'amex':
-                    if active_host == "192.168.50.121":
+                    if active_host == "192.168.50.61":
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
                     else:
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "AmexVirt"
@@ -407,12 +408,12 @@ async def main():
                 
                 # Ajuste dinámico de campaign_id según el servidor asignado
                 if args.campania == 'plata':
-                    if active_host == "192.168.50.121":
+                    if active_host == "192.168.50.61":
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
                     else:
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "pcardVir"
                 elif args.campania == 'amex':
-                    if active_host == "192.168.50.121":
+                    if active_host == "192.168.50.61":
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "3006"
                     else:
                         cfg['campaigns'][args.campania]['vicidial_api']['campaign_id'] = "AmexVirt"

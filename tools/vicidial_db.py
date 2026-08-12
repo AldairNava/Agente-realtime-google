@@ -6,7 +6,7 @@ from pymysql.cursors import DictCursor
 logger = logging.getLogger(__name__)
 
 DB_CONFIG = {
-    "host": "192.168.50.121",
+    "host": "192.168.50.61",
     "user": "lhernandez",
     "password": "lhernandez10",
     "database": "asterisk",

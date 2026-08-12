@@ -42,9 +42,15 @@ class GenesysRPA:
     def conectar_o_iniciar(self) -> bool:
         """Se conecta a una instancia abierta de Genesys o inicia una nueva."""
         try:
-            logger.info("🔗 Intentando conectar a una instancia existente de Genesys WDE...")
-            # Intentar conectarse por nombre de proceso
-            self.app = Application(backend="uia").connect(title_re=".*Workspace.*", timeout=5)
+            import pythoncom
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+
+        try:
+            logger.info("🔗 Intentando conectar a Genesys WDE por proceso...")
+            # Conectar por ejecutable es mucho más rápido y evita bloqueos de UIAutomation al enumerar escritorio
+            self.app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=2)
             logger.info("✅ Conexión exitosa a la instancia activa.")
             return True
         except Exception:
@@ -191,6 +197,76 @@ class GenesysRPA:
         except Exception as e:
             logger.error(f"❌ Error al enviar ENTER: {e}")
             return False
+
+    def is_in_call(self) -> bool:
+        """Verifica si hay una llamada conectada leyendo la interfaz del Workspace."""
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            # Instanciar localmente para evitar deadlocks de COM entre hilos (ThreadPool)
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            # Búsqueda ultra rápida delegada al motor UIA de Windows (evita marshalling a Python)
+            if main_window.child_window(title_re=".*Connected.*|.*Conectado.*").exists(timeout=0.5):
+                return True
+                
+        except Exception as e:
+            logger.debug(f"Error verificando estado de llamada en Genesys: {e}")
+            
+        return False
+
+    def get_active_call_data(self) -> dict:
+        """Extrae el número de teléfono de la llamada activa."""
+        data = {"phone_number": "", "CUENTA": "", "lead_id": "", "first_name": "", "last_name": ""}
+        
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return data
+                
+            import re
+            # Extraer de forma rápida solo el elemento que parece un teléfono
+            # Como fallback, obtenemos todos los textos y los filtramos
+            for d in main_window.descendants():
+                try:
+                    t = d.window_text()
+                    if t:
+                        match = re.search(r"\b\d{10}\b", t)
+                        if match:
+                            data["phone_number"] = match.group(0)
+                            data["lead_id"] = match.group(0) 
+                            break
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            logger.debug(f"Error extrayendo datos de llamada en Genesys: {e}")
+            
+        return data
+
+    def get_lead_id_fast(self) -> str:
+        """Fallback ultra rápido para el lead_id usado por agent_core.py."""
+        return self.get_active_call_data().get("lead_id", "")
 
 def main():
     parser = argparse.ArgumentParser(description="Genesys WDE RPA Client")

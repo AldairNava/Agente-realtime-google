@@ -85,7 +85,7 @@ class VoiceAgent:
         
         # Especial: unificar vicidial_api para el ToolDispatcher en producción o pruebas
         if self.execution_mode in ('produccion', 'pruebas') and self.campania_name != 'retencion':
-            active_host = self.full_cfg.get('vicidial_api', {}).get('host', '192.168.50.121')
+            active_host = self.full_cfg.get('vicidial_api', {}).get('host', '192.168.50.61')
             
             self.voice_cfg['vicidial_api'] = {
                 **self.full_cfg.get('vicidial_api', {}), # Base global (host, etc)
@@ -1480,18 +1480,26 @@ class VoiceAgent:
         )
 
         model = "models/gemini-3.1-flash-live-preview"
-        # Logueo en Vicidial si es producción o pruebas
+        # Logueo en Vicidial o Genesys si es producción o pruebas
         if self.execution_mode in ('produccion', 'pruebas'):
-            from src.phantom_browser import PhantomAgent
             api_cfg = self.tools_dispatcher.api
-            self.phantom = PhantomAgent(
-                api_cfg.host, api_cfg.phone_login, api_cfg.phone_pass,
-                api_cfg.user, api_cfg.password, api_cfg.campaign_id,
-                campania_name=self.campania_name
-            )
-            api_cfg.phantom = self.phantom
-            await asyncio.sleep(2)
-            self.phantom.start()
+            if self.campania_name == 'retencion':
+                logger.info("👀 Inicializando vigilante de llamadas Genesys (GenesysRPA)...")
+                from tools.retencion.genesys_rpa import GenesysRPA
+                self.phantom = GenesysRPA()
+                api_cfg.phantom = self.phantom
+            else:
+                from src.phantom_browser import PhantomAgent
+                self.phantom = PhantomAgent(
+                    api_cfg.host, api_cfg.phone_login, api_cfg.phone_pass,
+                    api_cfg.user, api_cfg.password, api_cfg.campaign_id,
+                    campania_name=self.campania_name
+                )
+                api_cfg.phantom = self.phantom
+                await asyncio.sleep(2)
+                self.phantom.start()
+        else:
+            self.phantom = None
 
         self.agent_running = True
         if self.execution_mode in ('produccion', 'pruebas'):
@@ -1624,8 +1632,8 @@ class VoiceAgent:
                                     phone_number = ""
                                     cuenta = ""
                                     
-                                    # 1. Intentar consultar base de datos si no ha fallado
-                                    if not db_failed:
+                                    # 1. Intentar consultar base de datos si no ha fallado (Excepto en retencion)
+                                    if not db_failed and self.campania_name != 'retencion':
                                         try:
                                             import pymysql
                                             conn = await asyncio.to_thread(
@@ -1649,7 +1657,7 @@ class VoiceAgent:
                                             db_failed = True
                                             
                                     # 2. Si no hay base de datos o falló, usar navegador
-                                    if db_failed:
+                                    if db_failed or self.campania_name == 'retencion':
                                         if hasattr(self, 'phantom') and self.phantom:
                                             # Primero comprobar llamada de forma ultra-rápida usando la imagen de livecall
                                             in_call = await asyncio.to_thread(self.phantom.is_in_call)

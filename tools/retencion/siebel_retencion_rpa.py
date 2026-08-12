@@ -19,7 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger("SiebelRetencionRPA")
 
 # Directorios del proyecto
-_SCRIPT_DIR = Path(__file__).parent.parent
+_SCRIPT_DIR = Path(__file__).parent.parent.parent
 sys.path.append(str(_SCRIPT_DIR))
 SIGNALS_DIR = _SCRIPT_DIR / "assets" / "retencion" / "rpa_signals"
 
@@ -110,7 +110,7 @@ def iniciarDriver(headless: bool = False):
 
         # Usar chromedriver local si existe
         from selenium.webdriver.chrome.service import Service
-        driver_path = _SCRIPT_DIR.parent / "chromedriver.exe"
+        driver_path = _SCRIPT_DIR / "chromedriver.exe"
 
         if perfil_nuevo:
             logger.warning("=" * 80)

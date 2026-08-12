@@ -37,7 +37,7 @@ LOGIN_URL      = f"{BASE_URL}/log-in?"
 USERNAME       = "p-ccorrea"
 PASSWORD       = "Crisco960427$"
 
-_SCRIPT_DIR    = Path(__file__).parent.parent   # raíz del proyecto
+_SCRIPT_DIR    = Path(__file__).parent.parent.parent   # raíz del proyecto
 sys.path.append(str(_SCRIPT_DIR))
 SIGNALS_DIR    = _SCRIPT_DIR / "assets" / "retencion" / "rpa_signals"
 
@@ -124,8 +124,13 @@ class RetencionRPA:
             logger.warning("Una vez instalada, cierra el navegador y vuelve a iniciar este RPA.")
             logger.warning("=" * 80)
             
-            logger.info("🌐 Iniciando Chrome visible usando Selenium Manager...")
-            self.driver = webdriver.Chrome(options=opts)
+            logger.info("🌐 Iniciando Chrome visible...")
+            chromedriver_path = _SCRIPT_DIR / "chromedriver.exe"
+            if chromedriver_path.exists():
+                service = Service(executable_path=str(chromedriver_path))
+                self.driver = webdriver.Chrome(service=service, options=opts)
+            else:
+                self.driver = webdriver.Chrome(options=opts)
             
             extension_url = "https://chromewebstore.google.com/detail/rpa-extension/ccilojpjnmepojkjkdpohdkbjpkfoojd"
             logger.info(f"📦 Navegando a la Chrome Web Store: {extension_url}")
@@ -147,8 +152,14 @@ class RetencionRPA:
             logger.info("👋 Navegador cerrado. Por favor inicia el RPA de nuevo.")
             sys.exit(0)
 
-        logger.info("🌐 Iniciando Chrome usando Selenium Manager por defecto...")
-        self.driver = webdriver.Chrome(options=opts)
+        chromedriver_path = _SCRIPT_DIR / "chromedriver.exe"
+        if chromedriver_path.exists():
+            logger.info("🌐 Iniciando Chrome usando ChromeDriver local...")
+            service = Service(executable_path=str(chromedriver_path))
+            self.driver = webdriver.Chrome(service=service, options=opts)
+        else:
+            logger.info("🌐 Iniciando Chrome usando Selenium Manager por defecto...")
+            self.driver = webdriver.Chrome(options=opts)
         logger.info("🌐 Navegador iniciado.")
 
     # ------------------------------------------------------------------

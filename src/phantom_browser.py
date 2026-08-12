@@ -336,8 +336,15 @@ class PhantomAgent:
                 try:
                     if self.driver:
                         self.driver.quit()
-                    logger.info("👻 [Phantom] Iniciando Chrome usando Selenium Manager...")
-                    self.driver = webdriver.Chrome(options=chrome_options)
+                    
+                    chromedriver_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "chromedriver.exe")
+                    if os.path.exists(chromedriver_path):
+                        logger.info("👻 [Phantom] Iniciando Chrome usando ChromeDriver local...")
+                        service = Service(executable_path=chromedriver_path)
+                        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                    else:
+                        logger.info("👻 [Phantom] Iniciando Chrome usando Selenium Manager...")
+                        self.driver = webdriver.Chrome(options=chrome_options)
                     self.driver.set_page_load_timeout(45)
 
                     self._do_login()
