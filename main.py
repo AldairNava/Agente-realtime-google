@@ -504,20 +504,7 @@ async def main():
             logger.error(f"❌ [Local] Error al iniciar sub-procesos RPA: {e}")
 
     if args.campania == "retencion_2":
-        import subprocess
-        logger.info(f"🚀 [{args.mode.capitalize()}] Iniciando procesos RPA de Retención 2...")
-        try:
-            log_siebel_2 = open("siebel_retencion_2_rpa_console.log", "w", encoding="utf-8")
-            rpa_siebel_2 = subprocess.Popen(
-                [sys.executable, "tools/retencion_2/siebel_retencion_rpa.py", "--test"],
-                cwd=os.path.dirname(os.path.abspath(__file__)),
-                stdout=log_siebel_2,
-                stderr=subprocess.STDOUT
-            )
-            rpa_processes.append(rpa_siebel_2)
-            logger.info("✅ [Local] RPA Siebel Retención 2 iniciado (Log: siebel_retencion_2_rpa_console.log).")
-        except Exception as e:
-            logger.error(f"❌ [Local] Error al iniciar RPA de Retención 2: {e}")
+        logger.info("🚀 [Retención 2] Modo autónomo activado (Sin RPA de Siebel, simulación de datos ficticios activa).")
 
     try:
         agent = VoiceAgent(

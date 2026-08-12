@@ -125,12 +125,8 @@ class RetencionRPA:
             logger.warning("=" * 80)
             
             logger.info("🌐 Iniciando Chrome visible...")
-            chromedriver_path = _SCRIPT_DIR / "chromedriver.exe"
-            if chromedriver_path.exists():
-                service = Service(executable_path=str(chromedriver_path))
-                self.driver = webdriver.Chrome(service=service, options=opts)
-            else:
-                self.driver = webdriver.Chrome(options=opts)
+            from src.driver_manager import crear_chrome_driver
+            self.driver = crear_chrome_driver(opts)
             
             extension_url = "https://chromewebstore.google.com/detail/rpa-extension/ccilojpjnmepojkjkdpohdkbjpkfoojd"
             logger.info(f"📦 Navegando a la Chrome Web Store: {extension_url}")
@@ -152,14 +148,8 @@ class RetencionRPA:
             logger.info("👋 Navegador cerrado. Por favor inicia el RPA de nuevo.")
             sys.exit(0)
 
-        chromedriver_path = _SCRIPT_DIR / "chromedriver.exe"
-        if chromedriver_path.exists():
-            logger.info("🌐 Iniciando Chrome usando ChromeDriver local...")
-            service = Service(executable_path=str(chromedriver_path))
-            self.driver = webdriver.Chrome(service=service, options=opts)
-        else:
-            logger.info("🌐 Iniciando Chrome usando Selenium Manager por defecto...")
-            self.driver = webdriver.Chrome(options=opts)
+        from src.driver_manager import crear_chrome_driver
+        self.driver = crear_chrome_driver(opts)
         logger.info("🌐 Navegador iniciado.")
 
     # ------------------------------------------------------------------

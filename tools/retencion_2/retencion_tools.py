@@ -1,596 +1,247 @@
 """
-Tools del agente de voz para el RPA de Retención izzi
-======================================================
-Estas herramientas son llamadas por el agente de Gemini para comunicarse
-con el proceso RPA a través de archivos de señal TXT.
-
-Directorio de señales: <raiz_proyecto>/rpa_signals/
+Tools del agente de voz para la Campaña Retención 2 (Simulación Ficticia Exclusiva)
+===================================================================================
+Este módulo proporciona las herramientas de datos ficticios ricos, atención a escenarios
+de retención (cobro no reconocido, streaming, mudanza, costo, fallas técnicas) y registro
+de llamadas en archivos JSON persistentes.
 """
 
+import os
+import json
 import logging
+from datetime import datetime
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Retencion2Tools")
 
-# Ruta del directorio de señales (relativa a la raíz del proyecto)
-_TOOLS_DIR   = Path(__file__).parent
-_PROJECT_DIR = _TOOLS_DIR.parent
-SIGNALS_DIR  = _PROJECT_DIR / "assets" / "retencion" / "rpa_signals"
+_TOOLS_DIR = Path(__file__).parent
+_PROJECT_DIR = _TOOLS_DIR.parent.parent
+REGISTROS_DIR = _PROJECT_DIR / "assets" / "retencion_2" / "registro_de_llamadas"
 
-# Motivos válidos aceptados por el portal (case-insensitive)
-MOTIVOS_VALIDOS = [
-    "Económico",
-    "Cambio de Domicilio",
-    "Fallas Técnicas",
-    "Quejas",
-    "Competencia",
-    "No lo Utiliza",
-    "Migración PYME",
-    "Visita técnica inmediata por instalación",
+# ---------------------------------------------------------------------------
+# Perfiles de Datos Ficticios (3 Escenarios Posibles)
+# ---------------------------------------------------------------------------
+
+PROFILES = [
+    {
+        "perfil_id": 1,
+        "titular": "Juan Carlos Pérez Gómez",
+        "tipo_paquete_izzi": "izzi 60 Megas Dual Play (Internet + Telefonía)",
+        "internet_megas": "60 Megas Simétricos",
+        "saldo": "$540.00 MXN",
+        "saldo_vencido": "$0.00 MXN (Al corriente)",
+        "dia_de_pago": "Día 05 de cada mes",
+        "ultima_factura": "$540.00 MXN (Facturada el 05 de este mes)",
+        "contrato_forzoso": "Sin plazo forzoso (Concluido hace 6 meses)",
+        "items_facturacion": [
+            "Internet izzi 60M ($450/mes)",
+            "Telefonía Ilimitada México/EUA/Canadá ($90/mes)",
+            "ViX Premium incluido (12 meses de regalo por lealtad)"
+        ],
+        "escenarios_recomendados": "Costo elevado, ya no lo usa, o baja de servicio de internet"
+    },
+    {
+        "perfil_id": 2,
+        "titular": "María Elena Rodríguez Morales",
+        "tipo_paquete_izzi": "izzi 100 Megas Triple Play HD (Internet + TV HD + Telefonía)",
+        "internet_megas": "100 Megas",
+        "saldo": "$890.00 MXN",
+        "saldo_vencido": "$0.00 MXN (Al corriente)",
+        "dia_de_pago": "Día 15 de cada mes",
+        "ultima_factura": "$890.00 MXN (Facturada el 15 del mes anterior)",
+        "contrato_forzoso": "Con Plazo Vigente (Restan 4 meses de contrato)",
+        "items_facturacion": [
+            "Internet izzi 100M ($590/mes)",
+            "izzi tv+ HD con Decodificador Android ($180/mes)",
+            "Add-on Netflix Estándar ($219/mes)",
+            "ViX Premium sin costo",
+            "Max (HBO) sin costo promocional"
+        ],
+        "escenarios_recomendados": "Aclaración de cobro no reconocido o cancelación exclusiva de streaming (Netflix/Max)"
+    },
+    {
+        "perfil_id": 3,
+        "titular": "Roberto Carlos Mendoza Sánchez",
+        "tipo_paquete_izzi": "izzi 200 Megas Unlimited HD (Internet 200M + 2 Cajas Smart izzi tv+)",
+        "internet_megas": "200 Megas High Speed",
+        "saldo": "$1,250.00 MXN",
+        "saldo_vencido": "$350.00 MXN (1 mes con adeudo pendiente)",
+        "dia_de_pago": "Día 25 de cada mes",
+        "ultima_factura": "$1,600.00 MXN (Incluye $350 de recargo de mes anterior)",
+        "contrato_forzoso": "Sin plazo forzoso (Plazo concluido)",
+        "items_facturacion": [
+            "Internet izzi 200M ($850/mes)",
+            "2 Cajas Smart izzi tv+ ($300/mes)",
+            "Add-on Disney+ Premium ($249/mes)",
+            "ViX Premium"
+        ],
+        "escenarios_recomendados": "Fallas técnicas recurrentes, saldo vencido / bonificación, o cambio de residencia"
+    }
 ]
 
 
-def _write_signal(filename: str, content: str) -> dict:
-    """Escribe un archivo de señal en el directorio compartido con el RPA."""
-    try:
-        SIGNALS_DIR.mkdir(exist_ok=True)
-        signal_path = SIGNALS_DIR / filename
-        signal_path.write_text(content.strip(), encoding="utf-8")
-        logger.info(f"📤 [RetencionTools] Señal '{filename}' escrita: {content.strip()}")
-        return {"status": "ok", "signal": filename, "value": content.strip()}
-    except Exception as e:
-        logger.error(f"❌ [RetencionTools] Error escribiendo señal '{filename}': {e}")
-        return {"status": "error", "message": str(e)}
-
-
-def _write_pollution(cuenta: str, tipo_caso: str) -> dict:
-    """Escribe un archivo de señal para el RPA de Pollution (Generación de Casos de Negocio en Siebel) y registra en BD."""
-    try:
-        pollution_dir = Path(r"C:\pollution")
-        pollution_dir.mkdir(parents=True, exist_ok=True)
-        signal_path = pollution_dir / "pollution_cte.txt"
-        
-        # Formato: cuenta|tipo_caso
-        content = f"{cuenta}|{tipo_caso}"
-        signal_path.write_text(content, encoding="utf-8")
-        logger.info(f"📤 [RetencionTools] Archivo pollution_cte.txt escrito en C:\\pollution: {content}")
-        
-        # Guardado en base de datos RetencionCallBack
-        try:
-            from tools.fallback_db import guardar_cliente_fallback
-            tel_file = SIGNALS_DIR / "tel.txt"
-            nombre_file = SIGNALS_DIR / "nombre.txt"
-            motivo_file = SIGNALS_DIR / "motivo.txt"
-            
-            tel_val = tel_file.read_text(encoding="utf-8").strip() if tel_file.exists() else None
-            nombre_val = nombre_file.read_text(encoding="utf-8").strip() if nombre_file.exists() else None
-            motivo_val = motivo_file.read_text(encoding="utf-8").strip() if motivo_file.exists() else None
-            
-            db_res = guardar_cliente_fallback(
-                cuenta=cuenta,
-                telefono=tel_val,
-                nombre_cliente=nombre_val,
-                motivo_cancelacion=motivo_val,
-                tipo_caso=tipo_caso,
-                nivel_retencion=0
-            )
-            logger.info(f"📊 [RetencionTools] Registro guardado en BD RetencionCallBack: {db_res}")
-        except Exception as db_err:
-            logger.error(f"⚠️ [RetencionTools] Error al guardar en BD RetencionCallBack: {db_err}")
-
-        return {"status": "ok", "signal": "pollution_cte.txt", "value": content}
-    except Exception as e:
-        logger.error(f"❌ [RetencionTools] Error escribiendo pollution_cte.txt: {e}")
-        return {"status": "error", "message": str(e)}
-
 # ---------------------------------------------------------------------------
-# Tools públicas (registradas en el agente)
+# Tools públicas para Gemini
 # ---------------------------------------------------------------------------
 
-def guardar_cuenta_cliente(cuenta: str) -> dict:
+def obtener_datos_cliente(cuenta: str = "90175351") -> dict:
     """
-    Envía el número de cuenta del cliente al RPA para que lo busque en el portal.
+    Obtiene la información ficticia completa de la cuenta dictada por el cliente.
+    Asigna de forma dinámica uno de los 3 perfiles ficticios con saldo, megas, día de pago,
+    contrato forzoso, última factura e items de facturación con streaming.
     
     Args:
-        cuenta: Número de cuenta del cliente (ej. "90175351").
-    
-    Returns:
-        dict con status "ok" o "error".
+        cuenta: Número de cuenta dictado por el cliente (ej: "90175351").
     """
-    if not cuenta or not str(cuenta).strip():
-        return {"status": "error", "message": "El número de cuenta no puede estar vacío."}
-    return _write_signal("cuenta.txt", str(cuenta))
+    clean_acc = "".join([c for c in str(cuenta) if c.isdigit()]) or "90175351"
+    profile_idx = sum([int(d) for d in clean_acc]) % len(PROFILES)
+    selected_profile = dict(PROFILES[profile_idx])
+    selected_profile["cuenta"] = clean_acc
 
-
-def guardar_telefono_cliente(telefono: str) -> dict:
-    """
-    Envía el número de teléfono del cliente al RPA para que lo busque en el portal.
-    
-    Args:
-        telefono: Número de teléfono del cliente (ej. "5595734105").
-    
-    Returns:
-        dict con status "ok" o "error".
-    """
-    if not telefono or not str(telefono).strip():
-        return {"status": "error", "message": "El número de teléfono no puede estar vacío."}
-    return _write_signal("tel.txt", str(telefono))
-
-
-def guardar_nombre_cliente(nombre: str) -> dict:
-    """
-    Envía el nombre completo del cliente al RPA para que lo busque en el portal.
-    
-    Args:
-        nombre: Nombre completo del titular (ej. "KARINA CARDENAS ALCANTARA").
-    
-    Returns:
-        dict con status "ok" o "error".
-    """
-    if not nombre or not nombre.strip():
-        return {"status": "error", "message": "El nombre no puede estar vacío."}
-    return _write_signal("nombre.txt", nombre)
-
-
-def guardar_tipo_cancelacion(tipo: str) -> dict:
-    """
-    Informa al RPA si la cancelación es 'total' o 'parcial'.
-    
-    Args:
-        tipo: "total" o "parcial".
-    
-    Returns:
-        dict con status "ok" o "error".
-    """
-    tipo_lower = tipo.strip().lower()
-    if tipo_lower not in ("total", "parcial"):
-        return {
-            "status": "error",
-            "message": f"Tipo de cancelación inválido: '{tipo}'. Usa 'total' o 'parcial'."
-        }
-    return _write_signal("cancelacion.txt", tipo_lower)
-
-
-def guardar_motivo_cancelacion(motivo: str) -> dict:
-    """
-    Envía el motivo de cancelación al RPA para que lo seleccione en la lista del portal.
-    
-    El motivo debe ser uno de los siguientes (se acepta texto similar, case-insensitive):
-    - Económico
-    - Cambio de Domicilio
-    - Fallas Técnicas
-    - Quejas
-    - Competencia
-    - No lo Utiliza
-    - Migración PYME
-    - Visita técnica inmediata por instalación
-    
-    Args:
-        motivo: Motivo de cancelación expresado por el cliente.
-    
-    Returns:
-        dict con status "ok" o "error".
-    """
-    if not motivo or not motivo.strip():
-        return {"status": "error", "message": "El motivo no puede estar vacío."}
-    
-    # Intentar mapear al motivo más cercano
-    motivo_mapeado = _mapear_motivo(motivo)
-    logger.info(f"🗺️ Motivo recibido: '{motivo}' → mapeado a: '{motivo_mapeado}'")
-    
-    return _write_signal("motivo.txt", motivo_mapeado)
-
-
-def limpiar_senales() -> dict:
-    """
-    Elimina todas las señales pendientes del directorio rpa_signals.
-    Llamar al terminar cada llamada para dejar el RPA listo para la siguiente.
-    
-    Returns:
-        dict con status "ok" y cantidad de archivos eliminados.
-    """
-    try:
-        SIGNALS_DIR.mkdir(exist_ok=True)
-        eliminados = []
-        for f in SIGNALS_DIR.glob("*.txt"):
-            f.unlink()
-            eliminados.append(f.name)
-        logger.info(f"🧹 [RetencionTools] Señales limpiadas: {eliminados}")
-        return {"status": "ok", "eliminados": eliminados}
-    except Exception as e:
-        logger.error(f"❌ [RetencionTools] Error limpiando señales: {e}")
-        return {"status": "error", "message": str(e)}
-
-# Alias para compatibilidad con la definición de la herramienta
-limpiar_senales_rpa = limpiar_senales
-
-
-def clasificar_perfil_cuenta(datos: dict) -> dict:
-    """
-    Analiza la información extraída por Siebel RPA e identifica automáticamente:
-    Portafolio, Tecnología (FTTH/HFC), Segmento (Residencial/Negocios) y Plazo Forzoso.
-    """
-    items = datos.get("items_facturacion", [])
-    texto_full = " ".join([str(i) for i in items] + [str(v) for v in datos.values()]).lower()
-
-    # 1. Portafolio
-    if any(str(item).endswith(" M") or " m " in str(item).lower() for item in items):
-        portafolio = "Modular / Ladrillos"
-    elif "axt" in texto_full or "axtel" in texto_full:
-        portafolio = "Lego Axtel"
-    elif "wizz" in texto_full or "unesco" in texto_full:
-        portafolio = "Wizz PM / Wizz Plus"
-    elif items and not any("izzi" in str(item).lower() for item in items):
-        portafolio = "Legacy / Cablevisión (Requiere 'Actualizar Oferta')"
-    else:
-        portafolio = "Masivo / izzi Wow"
-
-    # 2. Tecnología
-    if any(str(item).startswith("L ") or str(item).startswith("LN ") or "ftth" in str(item).lower() for item in items):
-        tecnologia = "FTTH (Fibra Óptica - Migración forzosa requiere cambio de equipos)"
-    else:
-        tecnologia = "HFC (Coaxial)"
-
-    # 3. Segmento
-    if "negocios" in texto_full:
-        segmento = "Negocios (Requiere Apoderado Legal / Acta Constitutiva)"
-    else:
-        segmento = "Residencial"
-
-    # 4. Plazo Forzoso
-    tiene_plazo = datos.get("plazo_vigente", False) or "plazo" in datos.get("estatus", "").lower()
-    if tiene_plazo:
-        plazo_status = "Con Plazo Vigente (Aplica penalización en baja anticipada)"
-    else:
-        plazo_status = "Sin Plazo (Apto para Renovación a 6 meses Con/Sin Beneficios)"
-
-    reglas = []
-    if "Sin Plazo" in plazo_status:
-        reglas.append("Apto para Renovación de Plazo Forzoso a 6 meses.")
-    if "Negocios" in segmento:
-        reglas.append("No aplica Adhesión de Derechos; requiere validar Apoderado Legal.")
-    if "Legacy" in portafolio:
-        reglas.append("Para realizar Downsale/Downgrade primero dar clic en 'Actualizar Oferta'.")
-
+    logger.info(f"📊 [Retencion2] Datos cargados para cuenta {clean_acc} -> Perfil {selected_profile['perfil_id']} ({selected_profile['titular']})")
     return {
-        "portafolio": portafolio,
-        "tecnologia": tecnologia,
-        "segmento": segmento,
-        "plazo_forzoso": plazo_status,
-        "reglas_aplicables": reglas
+        "status": "ok",
+        "datos": selected_profile,
+        "message": f"Datos cargados exitosamente para la cuenta {clean_acc}."
     }
 
 
-def obtener_datos_cliente() -> dict:
+def agendar_visita_tecnica(cuenta: str, fecha_visita: str, horario_turno: str, motivo_reporte: str) -> dict:
     """
-    Obtiene los datos del cliente que fueron extraídos del portal de Siebel por el RPA.
-    Llama esta herramienta cuando necesites conocer el saldo, estatus, plan o cualquier
-    información detallada del cliente que ya fue buscado en el sistema.
-    
-    Returns:
-        dict con la información del cliente, perfil_cuenta y reglas aplicables.
-    """
-    try:
-        datos_path = SIGNALS_DIR / "datos_cliente.json"
-        if datos_path.exists():
-            import json
-            content = datos_path.read_text(encoding="utf-8")
-            datos = json.loads(content)
-            
-            # Clasificación automática de perfil de cuenta
-            perfil = clasificar_perfil_cuenta(datos)
-            datos["perfil_cuenta"] = perfil
-            
-            logger.info(f"📖 [RetencionTools] Datos del cliente leídos: {list(datos.keys())} | Perfil: {perfil['portafolio']} / {perfil['tecnologia']}")
-            return {"status": "ok", "datos": datos}
-        else:
-            logger.warning("⚠️ [RetencionTools] El archivo datos_cliente.json no existe aún.")
-            return {
-                "status": "esperando",
-                "message": (
-                    "El sistema aún está cargando o buscando los datos del cliente en Siebel. "
-                    "Por favor, indíquele al cliente de viva voz que está validando sus datos "
-                    "y vuelva a llamar a esta herramienta en 2 o 3 segundos para obtener la información."
-                )
-            }
-    except Exception as e:
-        logger.error(f"❌ [RetencionTools] Error leyendo datos_cliente.json: {e}")
-        return {"status": "error", "message": str(e)}
-
-
-def generar_caso_negocio_siebel(cuenta: str, tipo_caso: str) -> dict:
-    """
-    Genera un caso de negocio automático en Siebel a través del RPA.
-    
-    Args:
-        cuenta: Número de cuenta del cliente (ej. "90175351").
-        tipo_caso: Tipo de caso a generar ('INFO GENERAL DEL SERV', 'TRANSFERENCIA', 'RETENIDO', 'NO RETENIDO', etc.).
-    
-    Returns:
-        dict con status "ok" o "error".
-    """
-    if not cuenta or not str(cuenta).strip():
-        return {"status": "error", "message": "El número de cuenta no puede estar vacío."}
-    if not tipo_caso or not str(tipo_caso).strip():
-        return {"status": "error", "message": "El tipo de caso no puede estar vacío."}
-    
-    return _write_pollution(str(cuenta).strip(), str(tipo_caso).strip())
-
-def guardar_resumen_transferencia(cuenta: str, resumen: str) -> dict:
-    """
-    Guarda un resumen del motivo por el cual el cliente está siendo transferido
-    cuando el agente no tiene la información o la solicitud está fuera de su alcance.
+    Agenda una visita de soporte técnico especializada en el domicilio del cliente sin costo
+    y aplica una bonificación de 3 días de servicio de regalo en la siguiente factura.
     
     Args:
         cuenta: Número de cuenta del cliente.
-        resumen: Explicación breve de qué buscaba el cliente y por qué se le transfiere.
+        fecha_visita: Fecha deseada (ej: "Mañana" o "14 de agosto").
+        horario_turno: Turno preferido ("Mañana 9:00 - 13:00" o "Tarde 14:00 - 18:00").
+        motivo_reporte: Descripción breve del fallo (ej: "Lentitud de internet", "Falla de señal tv").
     """
-    if not cuenta or not str(cuenta).strip():
-        return {"status": "error", "message": "El número de cuenta no puede estar vacío."}
-    
-    resumen_file = SIGNALS_DIR / "resumen.txt"
-    try:
-        SIGNALS_DIR.mkdir(exist_ok=True)
-        resumen_file.write_text(f"Cuenta: {cuenta}\nResumen: {resumen}", encoding="utf-8")
-        logger.info(f"📝 [RetencionTools] Resumen de transferencia guardado para {cuenta}.")
-        return {"status": "ok", "message": "Resumen guardado exitosamente."}
-    except Exception as e:
-        logger.error(f"❌ [RetencionTools] Error escribiendo resumen.txt: {e}")
-        return {"status": "error", "message": str(e)}
-
-
-def colgar_llamada_genesis() -> dict:
-    """
-    Envía una señal para que el RPA de Genesis cuelgue la llamada actual.
-    Debe llamarse al final de la interacción.
-    """
-    try:
-        SIGNALS_DIR.mkdir(exist_ok=True)
-        colgar_file = SIGNALS_DIR / "colgar.txt"
-        colgar_file.write_text("COLGAR", encoding="utf-8")
-        logger.info("📞 [RetencionTools] Señal de colgado (colgar.txt) enviada al RPA de Genesis.")
-        return {"status": "ok", "message": "Señal de colgado enviada."}
-    except Exception as e:
-        logger.error(f"❌ [RetencionTools] Error escribiendo colgar.txt: {e}")
-        return {"status": "error", "message": str(e)}
-
-
-# ---------------------------------------------------------------------------
-# Utilidades internas
-# ---------------------------------------------------------------------------
-
-def _mapear_motivo(motivo_raw: str) -> str:
-    """
-    Intenta encontrar el motivo oficial más cercano al texto del cliente.
-    Si no hay coincidencia, retorna el texto original para que el RPA intente.
-    """
-    motivo_lower = motivo_raw.strip().lower()
-    
-    # Mapa de palabras clave → motivo oficial
-    mapping = {
-        "económico":     "Económico",
-        "economico":     "Económico",
-        "dinero":        "Económico",
-        "caro":          "Económico",
-        "precio":        "Económico",
-        "domicilio":     "Cambio de Domicilio",
-        "mudanza":       "Cambio de Domicilio",
-        "mudo":          "Cambio de Domicilio",
-        "falla":         "Fallas Técnicas",
-        "fallas":        "Fallas Técnicas",
-        "técnica":       "Fallas Técnicas",
-        "técnico":       "Fallas Técnicas",
-        "problema":      "Fallas Técnicas",
-        "queja":         "Quejas",
-        "molesto":       "Quejas",
-        "atención":      "Quejas",
-        "servicio":      "Quejas",
-        "competencia":   "Competencia",
-        "otro":          "Competencia",
-        "totalplay":     "Competencia",
-        "telmex":        "Competencia",
-        "utiliza":       "No lo Utiliza",
-        "usa":           "No lo Utiliza",
-        "necesito":      "No lo Utiliza",
-        "pyme":          "Migración PYME",
-        "empresa":       "Migración PYME",
-        "negocio":       "Migración PYME",
-        "visita":        "Visita técnica inmediata por instalación",
-        "instalación":   "Visita técnica inmediata por instalación",
-        "instalacion":   "Visita técnica inmediata por instalación",
-        "técnico":       "Visita técnica inmediata por instalación",
+    logger.info(f"🛠️ [Retencion2] Cita técnica agendada para cuenta {cuenta}: {fecha_visita} ({horario_turno}) - Motivo: {motivo_reporte}")
+    return {
+        "status": "ok",
+        "folio_visita": f"VT-{datetime.now().strftime('%M%S')}-IZZI",
+        "fecha": fecha_visita,
+        "horario": horario_turno,
+        "bonificacion_aplicada": "3 días de bonificación sin costo acreditados a la cuenta",
+        "message": f"Visita técnica programada con éxito para el {fecha_visita} en el turno {horario_turno}. Se aplicó la bonificación de 3 días sin costo."
     }
+
+
+def aplicar_descuento_retencion(cuenta: str, porcentaje_descuento: int = 20, meses_duracion: int = 6) -> dict:
+    """
+    Aplica una promoción de retención exclusiva en la cuenta del cliente (ej. 20% de descuento por 6 o 12 meses,
+    o aumento temporal de megas gratis).
     
-    for keyword, oficial in mapping.items():
-        if keyword in motivo_lower:
-            return oficial
+    Args:
+        cuenta: Número de cuenta del cliente.
+        porcentaje_descuento: Porcentaje de descuento ofrecido (ej: 20%).
+        meses_duracion: Duración de la promoción en meses (ej: 6 o 12).
+    """
+    logger.info(f"🎁 [Retencion2] Descuento de retención aplicado a {cuenta}: {porcentaje_descuento}% por {meses_duracion} meses.")
+    return {
+        "status": "ok",
+        "folio_promocion": f"RET-{datetime.now().strftime('%S%f')[:4]}",
+        "porcentaje_descuento": f"{porcentaje_descuento}%",
+        "duracion_meses": meses_duracion,
+        "message": f"Promoción de retención del {porcentaje_descuento}% de descuento por {meses_duracion} meses activada correctamente en la cuenta."
+    }
+
+
+def modificar_servicios_streaming(cuenta: str, servicio_streaming: str, accion: str = "cancelar_addon") -> dict:
+    """
+    Modifica o remueve únicamente una suscripción/add-on de streaming (ej. Netflix, Max, Disney+) 
+    manteniendo el servicio base de izzi intacto.
     
-    # Sin coincidencia: retornar tal cual (el RPA usará búsqueda parcial)
-    return motivo_raw.strip()
+    Args:
+        cuenta: Número de cuenta del cliente.
+        servicio_streaming: Nombre del servicio a modificar (ej: "Netflix", "Disney+", "Max").
+        accion: "cancelar_addon" o "mantener_base".
+    """
+    logger.info(f"📺 [Retencion2] Modificación de streaming en {cuenta}: {accion} para {servicio_streaming}")
+    return {
+        "status": "ok",
+        "servicio": servicio_streaming,
+        "accion_realizada": f"Suscripción a {servicio_streaming} removida exitosamente. El paquete base de izzi se mantiene activo sin penalización.",
+        "message": f"Se canceló únicamente el add-on de {servicio_streaming}. El recibo izzi se ajustará a la baja automáticamente."
+    }
 
 
-# ---------------------------------------------------------------------------
-# Definición de herramientas para el dispatcher del agente
-# (compatible con el ToolDispatcher del proyecto)
-# ---------------------------------------------------------------------------
-TOOL_DEFINITIONS = [
-    {
-        "name": "guardar_cuenta_cliente",
-        "description": (
-            "Registra el número de cuenta del cliente para buscarlo en el sistema de retención. "
-            "Llama esta herramienta tan pronto como el cliente diga su número de cuenta."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "cuenta": {
-                    "type": "string",
-                    "description": "Número de cuenta del cliente (solo dígitos, ej: '90175351')."
-                }
-            },
-            "required": ["cuenta"]
-        },
-        "fn": guardar_cuenta_cliente,
-    },
-    {
-        "name": "guardar_telefono_cliente",
-        "description": (
-            "Registra el número de teléfono del cliente para buscarlo en el sistema de retención. "
-            "Llama esta herramienta cuando el cliente no recuerde su número de cuenta y proporcione su teléfono."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "telefono": {
-                    "type": "string",
-                    "description": "Número de teléfono del cliente (10 dígitos)."
-                }
-            },
-            "required": ["telefono"]
-        },
-        "fn": guardar_telefono_cliente,
-    },
-    {
-        "name": "guardar_nombre_cliente",
-        "description": (
-            "Registra el nombre completo del titular para buscarlo en el sistema de retención. "
-            "Llama esta herramienta cuando el cliente no recuerde su número de cuenta y proporcione su nombre completo."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "nombre": {
-                    "type": "string",
-                    "description": "Nombre completo del titular de la cuenta."
-                }
-            },
-            "required": ["nombre"]
-        },
-        "fn": guardar_nombre_cliente,
-    },
-    {
-        "name": "guardar_tipo_cancelacion",
-        "description": (
-            "Registra si el cliente quiere cancelar la totalidad de sus servicios o solo una parte. "
-            "Llama esta herramienta cuando el cliente indique qué quiere cancelar."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "tipo": {
-                    "type": "string",
-                    "enum": ["total", "parcial"],
-                    "description": "'total' si cancela todo, 'parcial' si cancela solo TV o Internet."
-                }
-            },
-            "required": ["tipo"]
-        },
-        "fn": guardar_tipo_cancelacion,
-    },
-    {
-        "name": "guardar_motivo_cancelacion",
-        "description": (
-            "Registra el motivo de cancelación expresado por el cliente. "
-            "Llama esta herramienta cuando el cliente diga la razón por la que quiere cancelar. "
-            f"Motivos reconocidos: {', '.join(MOTIVOS_VALIDOS)}."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "motivo": {
-                    "type": "string",
-                    "description": "Motivo de cancelación del cliente (texto libre)."
-                }
-            },
-            "required": ["motivo"]
-        },
-        "fn": guardar_motivo_cancelacion,
-    },
-    {
-        "name": "limpiar_senales_rpa",
-        "description": (
-            "Limpia todas las señales del RPA al terminar la llamada. "
-            "Llama esta herramienta siempre antes de colgar la llamada."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": []
-        },
-        "fn": limpiar_senales,
-    },
-    {
-        "name": "obtener_datos_cliente",
-        "description": (
-            "Obtiene los datos del cliente extraídos en tiempo real por el RPA desde Siebel. "
-            "Úsala cuando el cliente pregunte por su saldo, su plan contratado, su estatus actual, "
-            "o cuando necesites validar información cargada en el sistema."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": []
-        },
-        "fn": obtener_datos_cliente,
-    },
-    {
-        "name": "generar_caso_negocio_siebel",
-        "description": (
-            "Genera un caso de negocio automático en Siebel para documentar la interacción. "
-            "Úsala cuando el cliente solo pide información general (tipo_caso='INFO GENERAL DEL SERV'), "
-            "o cuando solicita cancelación de servicios adicionales o tiene fallas y debe ser redirigido a soporte (tipo_caso='TRANSFERENCIA'). "
-            "Requiere que tengas el número de cuenta."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "cuenta": {
-                    "type": "string",
-                    "description": "Número de cuenta del cliente."
-                },
-                "tipo_caso": {
-                    "type": "string",
-                    "description": "Tipo de caso. Opciones comunes: 'INFO GENERAL DEL SERV', 'TRANSFERENCIA'."
-                }
-            },
-            "required": ["cuenta", "tipo_caso"]
-        },
-        "fn": generar_caso_negocio_siebel,
-    },
-    {
-        "name": "guardar_resumen_transferencia",
-        "description": (
-            "Guarda un resumen del motivo por el cual se está transfiriendo al cliente. "
-            "Úsala obligatoriamente cuando el cliente pide información que no tienes o no le puedes resolver."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "cuenta": {
-                    "type": "string",
-                    "description": "Número de cuenta del cliente."
-                },
-                "resumen": {
-                    "type": "string",
-                    "description": "Breve resumen de lo que el cliente quería y por qué se transfiere."
-                }
-            },
-            "required": ["cuenta", "resumen"]
-        },
-        "fn": guardar_resumen_transferencia,
-    },
-    {
-        "name": "colgar_llamada_genesis",
-        "description": (
-            "Cuelga la llamada actual enviando una señal al sistema Genesis. "
-            "Úsala siempre como la ÚLTIMA herramienta para despedirte y terminar la llamada en Nivel 0."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": []
-        },
-        "fn": colgar_llamada_genesis,
-    },
-]
+def solicitar_cambio_domicilio(cuenta: str, fecha_mudanza: str = "Próxima semana") -> dict:
+    """
+    Registra la solicitud de transferencia/cambio de domicilio sin costo de reubicación de equipos.
+    
+    Args:
+        cuenta: Número de cuenta del cliente.
+        fecha_mudanza: Fecha o periodo estimado de mudanza.
+    """
+    logger.info(f"🏠 [Retencion2] Solicitud de cambio de domicilio para cuenta {cuenta} en fecha {fecha_mudanza}")
+    return {
+        "status": "ok",
+        "folio_mudanza": f"MUD-{datetime.now().strftime('%H%M%S')}",
+        "costo_reubicacion": "$0.00 MXN (Cortesía de retención)",
+        "message": "Solicitud de cambio de domicilio registrada sin costo de reubicación. Un técnico se pondrá en contacto para validar la nueva dirección."
+    }
 
+
+def guardar_registro_llamada_retencion_2(
+    cuenta: str,
+    cliente_nombre: str,
+    motivo_principal: str,
+    resultado_llamada: str,
+    herramientas_ejecutadas: str = "ninguna",
+    resumen_detallado: str = ""
+) -> dict:
+    """
+    Registra el resumen y la bitácora completa de lo sucedido en la llamada en un archivo JSON persistente
+    en assets/retencion_2/registro_de_llamadas/retencion_2_YYYYMMDD.json.
+    
+    Args:
+        cuenta: Número de cuenta del cliente.
+        cliente_nombre: Nombre del cliente o titular.
+        motivo_principal: Motivo por el cual llamó/canceló (ej: "Cobro no reconocido", "Costo muy alto", "Falla técnica", "Cancelación streaming", "Información de saldo").
+        resultado_llamada: Estatus final ("RETENIDO", "NO RETENIDO", "INFORMACION", "VISITA_TECNICA", "CAMBIO_DOMICILIO").
+        herramientas_ejecutadas: Lista o texto de herramientas utilizadas durante la atención.
+        resumen_detallado: Resumen de lo acordado con el cliente.
+    """
+    try:
+        REGISTROS_DIR.mkdir(parents=True, exist_ok=True)
+        filename = f"retencion_2_{datetime.now().strftime('%Y%m%d')}.json"
+        filepath = REGISTROS_DIR / filename
+
+        registros_previos = []
+        if filepath.exists():
+            try:
+                registros_previos = json.loads(filepath.read_text(encoding="utf-8"))
+            except Exception:
+                registros_previos = []
+
+        nuevo_registro = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "cuenta": cuenta,
+            "cliente_nombre": cliente_nombre,
+            "motivo_principal": motivo_principal,
+            "resultado_llamada": resultado_llamada,
+            "herramientas_ejecutadas": herramientas_ejecutadas,
+            "resumen_detallado": resumen_detallado
+        }
+
+        registros_previos.append(nuevo_registro)
+        filepath.write_text(json.dumps(registros_previos, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        logger.info(f"💾 [Retencion2] Registro guardado en {filepath.name} para la cuenta {cuenta} | Estatus: {resultado_llamada}")
+        return {"status": "ok", "file": str(filepath.name), "registro": nuevo_registro}
+    except Exception as e:
+        logger.error(f"❌ [Retencion2] Error al guardar registro JSON: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# Aliases de compatibilidad
+limpiar_senales = lambda: {"status": "ok"}
+limpiar_senales_rpa = limpiar_senales
+generar_caso_negocio_siebel = lambda cuenta, tipo_caso: {"status": "ok"}
+guardar_cuenta_cliente = lambda cuenta: {"status": "ok"}
+guardar_telefono_cliente = lambda tel: {"status": "ok"}
+guardar_nombre_cliente = lambda nom: {"status": "ok"}
+guardar_tipo_cancelacion = lambda tipo: {"status": "ok"}
+guardar_motivo_cancelacion = lambda mot: {"status": "ok"}

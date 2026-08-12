@@ -120,13 +120,8 @@ def iniciarDriver(headless: bool = False):
             logger.warning("Una vez instalada, cierra el navegador y vuelve a iniciar este RPA.")
             logger.warning("=" * 80)
 
-            if driver_path.exists():
-                logger.info("🌐 Iniciando Chrome usando chromedriver local...")
-                service = Service(executable_path=str(driver_path))
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            else:
-                logger.info("🌐 Iniciando Chrome usando Selenium Manager...")
-                driver = webdriver.Chrome(options=chrome_options)
+            from src.driver_manager import crear_chrome_driver
+            driver = crear_chrome_driver(chrome_options)
 
             driver.maximize_window()
             extension_url = "https://chromewebstore.google.com/detail/rpa-extension/ccilojpjnmepojkjkdpohdkbjpkfoojd"
@@ -150,7 +145,8 @@ def iniciarDriver(headless: bool = False):
             sys.exit(0)
 
         # Si el perfil ya existe, iniciar normalmente
-        driver = webdriver.Chrome(options=chrome_options)
+        from src.driver_manager import crear_chrome_driver
+        driver = crear_chrome_driver(chrome_options)
         driver.maximize_window()
         logger.info("▬ Webdriver abierto correctamente")
 

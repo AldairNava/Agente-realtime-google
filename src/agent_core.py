@@ -180,27 +180,23 @@ class VoiceAgent:
                 logger.info(f"🎯 [Retención] Tools de retención Nivel {nivel_retencion} registradas (Tools de búsqueda RPA habilitadas).")
         elif self.campania_name == 'retencion_2':
             from tools.retencion_2.retencion_tools import (
-                guardar_cuenta_cliente,
-                guardar_telefono_cliente,
-                guardar_nombre_cliente,
-                guardar_tipo_cancelacion,
-                guardar_motivo_cancelacion,
                 obtener_datos_cliente,
-                generar_caso_negocio_siebel,
-                limpiar_senales
+                agendar_visita_tecnica,
+                aplicar_descuento_retencion,
+                modificar_servicios_streaming,
+                solicitar_cambio_domicilio,
+                guardar_registro_llamada_retencion_2
             )
             extra_tools.extend([
-                guardar_cuenta_cliente,
-                guardar_telefono_cliente,
-                guardar_nombre_cliente,
-                guardar_tipo_cancelacion,
-                guardar_motivo_cancelacion,
-                limpiar_senales,
                 obtener_datos_cliente,
-                generar_caso_negocio_siebel,
+                agendar_visita_tecnica,
+                aplicar_descuento_retencion,
+                modificar_servicios_streaming,
+                solicitar_cambio_domicilio,
+                guardar_registro_llamada_retencion_2,
                 self.rag.consultar_informacion_retencion,
             ])
-            logger.info("🎯 [Retención 2] Tools de retención registradas con integración Vicidial activa.")
+            logger.info("🎯 [Retención 2] Tools de simulación ficticia, retención y registro JSON registradas para el agente.")
         elif self.campania_name == 'plata':
             from tools.plata.plata_tools import (
                 crm_llenado,
@@ -324,10 +320,10 @@ class VoiceAgent:
                 state["pendientes"] = pendientes_perfilamiento + pendientes_datos if nodo in ("nodo_1_saludo", "nodo_2_sondeo_filtro") else pendientes_datos
                 state["detalles"] = f"Campos listos: {', '.join(completados)} | Faltan: {', '.join(state['pendientes'])}"
                 
-            elif self.campania_name == 'retencion':
+            elif self.campania_name in ('retencion', 'retencion_2'):
                 # Señales escritas en la carpeta de rpa_signals
                 import os
-                signals_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', 'retencion', 'rpa_signals')
+                signals_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', self.campania_name, 'rpa_signals')
                 
                 cuenta_exists = os.path.exists(os.path.join(signals_dir, 'cuenta.txt'))
                 tel_exists = os.path.exists(os.path.join(signals_dir, 'tel.txt'))
@@ -656,7 +652,7 @@ class VoiceAgent:
 
     async def _network_watchdog(self):
         """Monitorea la conectividad de red con el servidor Vicidial para detectar micro-cortes."""
-        if self.campania_name == 'retencion':
+        if self.campania_name in ('retencion', 'retencion_2'):
             logger.info("📡 [Watchdog Red] Omitido para la campaña de retención.")
             return
 
@@ -1348,7 +1344,10 @@ class VoiceAgent:
         
         # Limpiar archivo datos_cliente.json de llamadas anteriores
         try:
-            from tools.retencion.retencion_tools import SIGNALS_DIR
+            if self.campania_name == 'retencion_2':
+                from tools.retencion_2.retencion_tools import SIGNALS_DIR
+            else:
+                from tools.retencion.retencion_tools import SIGNALS_DIR
             datos_path = SIGNALS_DIR / "datos_cliente.json"
             if datos_path.exists():
                 datos_path.unlink()
@@ -1358,9 +1357,9 @@ class VoiceAgent:
             
         vc = self.voice_cfg
         
-        if self.campania_name == 'retencion':
+        if self.campania_name in ('retencion', 'retencion_2'):
             levels = vc.get('levels', {})
-            ai = levels.get(self.level, {}).get('agent_instructions', vc.get('agent_instructions', {}))
+            ai = levels.get(str(self.level), {}).get('agent_instructions', vc.get('agent_instructions', {}))
         else:
             ai = vc.get('agent_instructions', {})
         
@@ -1436,7 +1435,7 @@ class VoiceAgent:
                 "\n2. CIERRE DE LLAMADA: Al terminar la interacción con el cliente (ya sea por venta exitosa, rechazo, reprogramación o llamada cortada), debes despedirte formalmente y, en esa misma respuesta (en el mismo turno), llamar a la herramienta 'external_pause_and_flag_exit' con los parámetros correspondientes (cn_type, cn_motivo, tipificacion). NUNCA debes mencionarle al cliente que vas a colgar la llamada ni que vas a tipificar o clasificar la llamada. Debe ser un proceso totalmente silencioso e invisible para el cliente. Simplemente di la frase de despedida correspondiente del catálogo y, en el mismo turno, ejecuta la herramienta."
             )
             voicemail_status = "NCBUZ"
-        elif self.campania_name == 'retencion':
+        elif self.campania_name in ('retencion', 'retencion_2'):
             cierre_rules = (
                 "\n2. CIERRE DE LLAMADA: Al terminar la interacción, debes clasificar la llamada en el sistema llamando a la herramienta 'external_status' con uno de los siguientes valores exactos en MAYÚSCULAS en orden ESTRICTO y después a 'external_hangup':"
                 "\n   a) Si la conversación se dirigió a cancelar y LOGRASTE MANTENER al cliente activo mediante alguna promoción, descuento o beneficio de retención, llama a 'external_status' con el valor 'RETEN' y después a 'external_hangup'."
@@ -1594,7 +1593,7 @@ class VoiceAgent:
                             if self.campania_name == 'ventas_izzi':
                                 greeting_phrase = "Buen día, ¿hablo con Aldair?"
                                 brand_info = "Llamas de izzi y ofreces el servicio izzi tv+."
-                            elif self.campania_name == 'retencion':
+                            elif self.campania_name in ('retencion', 'retencion_2'):
                                 greeting_phrase = "Buen día, gracias por llamar a cuentas especiales izzi, ¿con quién tengo el gusto?"
                                 brand_info = "Te identificas como de Cuentas Especiales de Izzi."
                             elif self.campania_name == 'plata':
@@ -1606,7 +1605,7 @@ class VoiceAgent:
                             else:
                                 greeting_phrase = f"Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con {self.client_name}?"
                                 brand_info = ""
-                            if self.campania_name == 'retencion':
+                            if self.campania_name in ('retencion', 'retencion_2'):
                                 print("\n" + "="*70)
                                 print("🛎️  PRESIONA [ENTER] AQUI EN LA CONSOLA PARA QUE EL AGENTE HABLE 🛎️")
                                 print("="*70 + "\n")
@@ -1633,7 +1632,7 @@ class VoiceAgent:
                                     cuenta = ""
                                     
                                     # 1. Intentar consultar base de datos si no ha fallado (Excepto en retencion)
-                                    if not db_failed and self.campania_name != 'retencion':
+                                    if not db_failed and self.campania_name not in ('retencion', 'retencion_2'):
                                         try:
                                             import pymysql
                                             conn = await asyncio.to_thread(
@@ -1657,7 +1656,7 @@ class VoiceAgent:
                                             db_failed = True
                                             
                                     # 2. Si no hay base de datos o falló, usar navegador
-                                    if db_failed or self.campania_name == 'retencion':
+                                    if db_failed or self.campania_name in ('retencion', 'retencion_2'):
                                         if hasattr(self, 'phantom') and self.phantom:
                                             # Primero comprobar llamada de forma ultra-rápida usando la imagen de livecall
                                             in_call = await asyncio.to_thread(self.phantom.is_in_call)
@@ -1701,7 +1700,7 @@ class VoiceAgent:
                                             self._greeting_triggered = True
                                             self.greeting_trigger_time = asyncio.get_event_loop().time()
                                             
-                                            if self.campania_name == 'retencion':
+                                            if self.campania_name in ('retencion', 'retencion_2'):
                                                 greeting_phrase = "Buen día, gracias por llamar a cuentas especiales izzi, ¿con quién tengo el gusto?"
                                                 brand_info = "Te identificas como de Cuentas Especiales de Izzi."
                                                 logger.info("📢 [IA] Enviando saludo inicial para Retención...")
@@ -1734,7 +1733,7 @@ class VoiceAgent:
                                             # Determinar el nombre de la compañía/marca para el mensaje del sistema
                                             if self.campania_name == 'ventas_izzi':
                                                 brand_info = "Llamas de izzi y ofreces el servicio izzi tv+."
-                                            elif self.campania_name == 'retencion':
+                                            elif self.campania_name in ('retencion', 'retencion_2'):
                                                 brand_info = "Te identificas como de Cuentas Especiales de Izzi."
                                             elif self.campania_name == 'plata':
                                                 brand_info = "Llamas del centro telefónico autorizado 305 en representación de Banco Plata."
@@ -1762,7 +1761,7 @@ class VoiceAgent:
                                                 
                                             self.client_name = f"{first_name} {last_name}".strip()
                                             
-                                            if self.campania_name in ['plata', 'retencion']:
+                                            if self.campania_name in ['plata', 'retencion', 'retencion_2']:
                                                 # Enviar los datos del cliente de forma silenciosa para el contexto del agente, sin forzar la segunda frase de inmediato
                                                 is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
                                                 self.client_name = f"{first_name} {last_name}".strip() if is_valid_name else ""
@@ -1861,9 +1860,12 @@ class VoiceAgent:
                                         fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
                                     logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
                                     
-                                    if self.campania_name == 'retencion' and getattr(self, 'client_cuenta', None):
+                                    if self.campania_name in ('retencion', 'retencion_2') and getattr(self, 'client_cuenta', None):
                                         logger.warning(f"⚠️ [Core] Llamada de retención cortada abruptamente (cuenta {self.client_cuenta}). Registrando 'SE CORTA LLAMADA'.")
-                                        from tools.retencion.retencion_tools import _write_pollution
+                                        if self.campania_name == 'retencion_2':
+                                            from tools.retencion_2.retencion_tools import _write_pollution
+                                        else:
+                                            from tools.retencion.retencion_tools import _write_pollution
                                         try:
                                             await asyncio.to_thread(_write_pollution, self.client_cuenta, "SE CORTA LLAMADA")
                                         except Exception as e:
@@ -1916,8 +1918,6 @@ class VoiceAgent:
                                 "audio": os.path.basename(self.recorder.call_path) if self.recorder else None
                             }
                             
-                            calls_list = []
-                            
                             # Leer registros existentes si el JSON ya existe
                             if os.path.exists(json_path):
                                 try:
@@ -1928,7 +1928,19 @@ class VoiceAgent:
                                 except Exception as parse_err:
                                     logger.warning(f"Error parseando JSON existente {json_path}: {parse_err}")
                                     
-                            calls_list.append(call_data)
+                            # Para retencion_2, si el último registro ya fue generado por guardar_registro_llamada_retencion_2 para esta cuenta, enriquecerlo en lugar de duplicarlo
+                            if self.campania_name == 'retencion_2' and calls_list:
+                                last_item = calls_list[-1]
+                                if isinstance(last_item, dict) and (last_item.get("cuenta") == self.client_cuenta or "resumen_detallado" in last_item):
+                                    last_item["audio"] = os.path.basename(self.recorder.call_path) if self.recorder else None
+                                    last_item["lead_id"] = self.client_lead_id or last_item.get("lead_id", "0")
+                                    if final_status and final_status != "SIN_ESTATUS":
+                                        last_item["estatus"] = final_status
+                                    last_item["resumen"] = last_item.get("resumen_detallado") or last_item.get("resumen", resumen)
+                                else:
+                                    calls_list.append(call_data)
+                            else:
+                                calls_list.append(call_data)
                             
                             with open(json_path, "w", encoding="utf-8") as f:
                                 json.dump(calls_list, f, indent=4, ensure_ascii=False)

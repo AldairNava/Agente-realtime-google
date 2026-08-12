@@ -160,3 +160,16 @@ def get_or_download_chromedriver(project_root=None):
 
     logger.error("❌ No se pudo descargar automáticamente el ChromeDriver. Se intentará usar Selenium Manager por defecto.")
     return None
+
+
+def crear_chrome_driver(chrome_options):
+    """
+    Inicia Chrome utilizando Selenium Manager (nativo de Selenium 4+).
+    Selenium Manager detecta la versión instalada de Chrome y gestiona automáticamente el driver compatible.
+    """
+    from selenium import webdriver
+
+    logger.info("🌐 Iniciando Chrome con Selenium Manager nativo...")
+    return webdriver.Chrome(options=chrome_options)
+
+
