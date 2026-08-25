@@ -200,24 +200,19 @@ class GenesysRPA:
 
     def is_in_call(self) -> bool:
         """Verifica si hay una llamada conectada leyendo la interfaz del Workspace."""
-        logger.info("[DEBUG] [is_in_call] 1. Entrando a la función is_in_call...")
+        logger.info(f"[DEBUG] [is_in_call] 1. Entrando a la función is_in_call. Archivo: {__file__}")
         try:
             import pythoncom
             logger.info("[DEBUG] [is_in_call] 2. Ejecutando CoInitialize...")
             pythoncom.CoInitialize()
             
-            logger.info("[DEBUG] [is_in_call] 3. Intentando conectar a InteractionWorkspace.exe...")
-            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
-            logger.info("[DEBUG] [is_in_call] 4. Conectado exitosamente. Buscando ventana...")
-            main_window = None
-            for w in app.windows():
-                title = w.texts()[0] if w.texts() else ""
-                if "workspace" in title.lower():
-                    main_window = w
-                    break
-                    
-            if not main_window:
-                logger.info("[DEBUG] [is_in_call] 5a. No se encontró ventana con 'workspace' en el título.")
+            logger.info("[DEBUG] [is_in_call] 3. Intentando conectar directamente por título '.*Workspace.*'...")
+            app = Application(backend="uia").connect(title_re=".*Workspace.*", timeout=2)
+            logger.info("[DEBUG] [is_in_call] 4. Conectado exitosamente. Obteniendo objeto ventana...")
+            main_window = app.window(title_re=".*Workspace.*")
+            
+            if not main_window.exists(timeout=0.5):
+                logger.info("[DEBUG] [is_in_call] 5a. La ventana con título 'Workspace' no existe en el sistema.")
                 return False
                 
             logger.info("[DEBUG] [is_in_call] 5b. Ventana encontrada. Buscando controles...")
