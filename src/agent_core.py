@@ -479,6 +479,27 @@ class VoiceAgent:
             "message": "Búsqueda en segundo plano iniciada. Puedes continuar platicando, el SISTEMA te avisará inyectándote los datos en cuanto estén listos."
         }
 
+    async def _run_genesys_rpa(self, args_list: list) -> str:
+        """
+        Ejecuta el script RPA de Genesys en un subproceso independiente para evitar deadlocks de COM.
+        """
+        try:
+            script_path = os.path.join(os.path.dirname(__file__), '..', 'tools', 'retencion', 'genesys_rpa.py')
+            proc = await asyncio.create_subprocess_exec(
+                'py', '-3.12', script_path, *args_list,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            res = stdout.decode('utf-8', errors='ignore').strip()
+            err = stderr.decode('utf-8', errors='ignore').strip()
+            if err:
+                logger.debug(f"[Subprocess RPA Stderr] {err}")
+            return res
+        except Exception as e:
+            logger.error(f"Error ejecutando subproceso Genesys RPA: {e}")
+            return ""
+
     def guardar_registro_llamada_retencion(
         self,
         cuenta: str,
@@ -540,10 +561,9 @@ class VoiceAgent:
         # Ejecutar clic en botón Done de Genesys
         if hasattr(self, 'phantom') and self.phantom:
             logger.info("🖱️ [Retencion] Clickeando Done en Genesys...")
-            if hasattr(self.phantom, 'click_done_button'):
-                self.loop.call_soon_threadsafe(
-                    lambda: self.loop.create_task(asyncio.to_thread(self.phantom.click_done_button))
-                )
+            self.loop.call_soon_threadsafe(
+                lambda: self.loop.create_task(self._run_genesys_rpa(["--click-done"]))
+            )
 
         self.session_active = False
         return {"status": "ok", "message": "Registro guardado y pantalla de Genesys cerrada."}
@@ -609,10 +629,9 @@ class VoiceAgent:
         # Ejecutar clic en botón colgar (End The Call) de Genesys WDE
         if hasattr(self, 'phantom') and self.phantom:
             logger.info("📞 [Retencion] Clickeando End Call en Genesys...")
-            if hasattr(self.phantom, 'click_end_call_button'):
-                self.loop.call_soon_threadsafe(
-                    lambda: self.loop.create_task(asyncio.to_thread(self.phantom.click_end_call_button))
-                )
+            self.loop.call_soon_threadsafe(
+                lambda: self.loop.create_task(self._run_genesys_rpa(["--click-end"]))
+            )
 
         return {"status": "ok", "message": "Llamada finalizada activamente en Genesys y registro guardado."}
 
@@ -663,14 +682,11 @@ class VoiceAgent:
 
         if hasattr(self, 'phantom') and self.phantom:
             logger.info(f"🔄 [Retencion] Solicitando transferencia de llamada a: '{area}'...")
-            if hasattr(self.phantom, 'transfer_call_genesys'):
-                self.loop.call_soon_threadsafe(
-                    lambda: self.loop.create_task(asyncio.to_thread(self.phantom.transfer_call_genesys, area))
-                )
-                self.session_active = False
-                return {"status": "ok", "message": f"Transferencia al área '{area}' iniciada."}
-            else:
-                logger.error("❌ El objeto phantom de Genesys no tiene la función transfer_call_genesys.")
+            self.loop.call_soon_threadsafe(
+                lambda: self.loop.create_task(self._run_genesys_rpa(["--transfer", area]))
+            )
+            self.session_active = False
+            return {"status": "ok", "message": f"Transferencia al área '{area}' iniciada."}
         return {"status": "error", "message": "No se pudo realizar la transferencia en Genesys."}
 
     async def _bg_fetch_client_data(self):
@@ -1526,8 +1542,8 @@ class VoiceAgent:
                                 logger.error(f"Error registrando colgado por silencio: {re}")
 
                             # Clic en colgar (End The Call) en Genesys
-                            if hasattr(self, 'phantom') and self.phantom and hasattr(self.phantom, 'click_end_call_button'):
-                                await asyncio.to_thread(self.phantom.click_end_call_button)
+                            if hasattr(self, 'phantom') and self.phantom:
+                                await self._run_genesys_rpa(["--click-end"])
                         else:
                             api_cfg = self.tools_dispatcher.api
                             logger.warning(f"⏱️ [Watchdog Silencio] Ejecutando colgado y tipificando como {no_resp_status}...")
@@ -1907,10 +1923,12 @@ class VoiceAgent:
                                             # Para retencion, si ya estamos en llamada, el colgado del cliente se detecta buscando el botón Done Ctrl+E.
                                             if self.campania_name == 'retencion':
                                                 if was_in_call:
-                                                    is_done = await asyncio.to_thread(self.phantom.is_done_button_visible)
+                                                    is_done_str = await self._run_genesys_rpa(["--is-done-visible"])
+                                                    is_done = (is_done_str == "TRUE")
                                                     in_call = not is_done
                                                 else:
-                                                    in_call = await asyncio.to_thread(self.phantom.is_in_call)
+                                                    in_call_str = await self._run_genesys_rpa(["--is-in-call"])
+                                                    in_call = (in_call_str == "TRUE")
                                                     logger.info(f"🔎 [Monitor Retencion] is_in_call retornado: {in_call}")
                                             else:
                                                 in_call = await asyncio.to_thread(self.phantom.is_in_call)
@@ -1972,7 +1990,16 @@ class VoiceAgent:
                                                 tasks.append(asyncio.create_task(self._silence_watchdog(session)))
                                                 
                                             # --- AHORA EXTRAER LA INFORMACIÓN DE LA LLAMADA EN PARALELO ---
-                                            call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
+                                            if self.campania_name == 'retencion':
+                                                call_data_str = await self._run_genesys_rpa(["--get-call-data"])
+                                                call_data = {}
+                                                try:
+                                                    call_data = json.loads(call_data_str)
+                                                except Exception as je:
+                                                    logger.error(f"Error parseando call_data JSON: {je}")
+                                            else:
+                                                call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
+                                            
                                             phone_number = call_data.get("phone_number", "")
                                             cuenta = call_data.get("CUENTA", "")
                                             lead_id_str = call_data.get("lead_id", "") or lead_id_str
@@ -2074,8 +2101,8 @@ class VoiceAgent:
                                             if self.campania_name == 'retencion':
                                                 if getattr(self, 'registro_guardado', False):
                                                     logger.info("📞 [Monitor] La llamada terminó y el registro ya fue guardado. Dando clic a Done...")
-                                                    if hasattr(self, 'phantom') and self.phantom and hasattr(self.phantom, 'click_done_button'):
-                                                        await asyncio.to_thread(self.phantom.click_done_button)
+                                                    if hasattr(self, 'phantom') and self.phantom:
+                                                        await self._run_genesys_rpa(["--click-done"])
                                                     self.session_active = False
                                                     break
                                                 else:

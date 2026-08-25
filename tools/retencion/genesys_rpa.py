@@ -400,10 +400,41 @@ def main():
     parser.add_argument("--password", type=str, help="Contraseña")
     parser.add_argument("--place", type=str, help="Place / Extensión (opcional)")
     parser.add_argument("--debug", action="store_true", help="Analizar y mostrar los controles de la ventana activa")
+    
+    # Argumentos para subproceso
+    parser.add_argument("--is-in-call", action="store_true", help="Verifica si hay llamada activa")
+    parser.add_argument("--get-call-data", action="store_true", help="Extrae datos de llamada activa")
+    parser.add_argument("--is-done-visible", action="store_true", help="Verifica si el botón Done está visible")
+    parser.add_argument("--click-done", action="store_true", help="Haz clic en Done")
+    parser.add_argument("--click-end", action="store_true", help="Haz clic en End Call / Colgar")
+    parser.add_argument("--transfer", type=str, help="Transfiere la llamada al destino indicado")
+    
     args = parser.parse_args()
 
     rpa = GenesysRPA(exe_path=args.exe)
     
+    # Procesar comandos rápidos del subproceso directamente sin requerir ventana de login
+    if args.is_in_call:
+        print("TRUE" if rpa.is_in_call() else "FALSE")
+        return
+    elif args.get_call_data:
+        import json
+        data = rpa.get_active_call_data()
+        print(json.dumps(data))
+        return
+    elif args.is_done_visible:
+        print("TRUE" if rpa.is_done_button_visible() else "FALSE")
+        return
+    elif args.click_done:
+        print("TRUE" if rpa.click_done_button() else "FALSE")
+        return
+    elif args.click_end:
+        print("TRUE" if rpa.click_end_call_button() else "FALSE")
+        return
+    elif args.transfer:
+        print("TRUE" if rpa.transfer_call_genesys(args.transfer) else "FALSE")
+        return
+
     if not rpa.conectar_o_iniciar():
         sys.exit(1)
 
