@@ -1487,13 +1487,55 @@ class VoiceAgent:
                     no_resp_status = self.voice_cfg.get('dispositions', {}).get('no_response', 'SINRSPT')
                     self.final_disposition = no_resp_status
                     if self.execution_mode in ('produccion', 'pruebas'):
-                        api_cfg = self.tools_dispatcher.api
-                        logger.warning(f"⏱️ [Watchdog Silencio] Ejecutando colgado y tipificando como {no_resp_status}...")
-                        try:
-                            await asyncio.to_thread(api_cfg.external_status, no_resp_status)
-                            await asyncio.to_thread(api_cfg.external_hangup)
-                        except Exception as he:
-                            logger.error(f"Error colgando llamada por silencio: {he}")
+                        if self.campania_name == 'retencion':
+                            logger.warning("⏱️ [Watchdog Silencio] Campaña Retención. Colgando activamente en Genesys...")
+                            try:
+                                today_str = datetime.now().strftime("%Y%m%d")
+                                log_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', self.campania_name, 'registro_de_llamadas')
+                                os.makedirs(log_dir, exist_ok=True)
+                                json_path = os.path.join(log_dir, f"{self.campania_name}_{today_str}.json")
+
+                                calls_list = []
+                                if os.path.exists(json_path):
+                                    try:
+                                        with open(json_path, "r", encoding="utf-8") as f:
+                                            calls_list = json.load(f)
+                                            if not isinstance(calls_list, list):
+                                                calls_list = [calls_list]
+                                    except Exception as parse_err:
+                                        logger.warning(f"Error parseando JSON existente {json_path}: {parse_err}")
+
+                                call_data = {
+                                    "campania": self.campania_name,
+                                    "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "lead_id": self.client_lead_id or "0",
+                                    "nombre": self.client_name or "Desconocido",
+                                    "cuenta": self.client_cuenta or "Desconocido",
+                                    "telefono": self.client_phone or "Desconocido",
+                                    "estatus": "DESCONEXION",
+                                    "resumen": "Llamada cortada por silencio continuo (sin respuesta)",
+                                    "audio": os.path.basename(self.recorder.call_path) if self.recorder else None
+                                }
+                                calls_list.append(call_data)
+
+                                with open(json_path, "w", encoding="utf-8") as f:
+                                    json.dump(calls_list, f, ensure_ascii=False, indent=4)
+                                self.registro_guardado = True
+                                logger.info(f"💾 [Retencion] Registro de llamada guardado por silencio en {json_path}")
+                            except Exception as re:
+                                logger.error(f"Error registrando colgado por silencio: {re}")
+
+                            # Clic en colgar (End The Call) en Genesys
+                            if hasattr(self, 'phantom') and self.phantom and hasattr(self.phantom, 'click_end_call_button'):
+                                await asyncio.to_thread(self.phantom.click_end_call_button)
+                        else:
+                            api_cfg = self.tools_dispatcher.api
+                            logger.warning(f"⏱️ [Watchdog Silencio] Ejecutando colgado y tipificando como {no_resp_status}...")
+                            try:
+                                await asyncio.to_thread(api_cfg.external_status, no_resp_status)
+                                await asyncio.to_thread(api_cfg.external_hangup)
+                            except Exception as he:
+                                logger.error(f"Error colgando llamada por silencio: {he}")
                     else:
                         logger.warning("⏱️ [Watchdog Silencio] Modo local. Colgando localmente...")
                     
@@ -2072,32 +2114,39 @@ class VoiceAgent:
 
                         # Asegurar que se haya tipificado y colgado antes de reiniciar la sesión de voz
                         if self.execution_mode in ('produccion', 'pruebas') and hasattr(self, 'phantom') and self.phantom:
-                            api_cfg = self.tools_dispatcher.api
-                            # Evitar doble ejecución si la IA ya inició el proceso de colgar o transferir
-                            if api_cfg and not getattr(api_cfg, 'call_hungup_sent', False) and not getattr(self, 'hangup_executed', False) and not getattr(self, 'transfer_executed', False):
-                                if getattr(api_cfg, '_status_called', False):
-                                    logger.info(f"ℹ️ [Core] La llamada finalizó con tipificación explícita '{api_cfg._pending_status}'. Ejecutando colgado...")
-                                    await asyncio.to_thread(api_cfg.external_hangup)
-                                else:
-                                    fallback_status = self.final_disposition
-                                    if not fallback_status:
-                                        status_opts = self.voice_cfg.get('dispositions', {})
-                                        fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
-                                    logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
-                                    
-                                    if self.campania_name in ('retencion', 'retencion_2') and getattr(self, 'client_cuenta', None):
-                                        logger.warning(f"⚠️ [Core] Llamada de retención cortada abruptamente (cuenta {self.client_cuenta}). Registrando 'SE CORTA LLAMADA'.")
-                                        if self.campania_name == 'retencion_2':
+                            if self.campania_name == 'retencion':
+                                # Para retencion, no hay llamadas API a Vicidial
+                                if not getattr(self, 'registro_guardado', False) and getattr(self, 'client_cuenta', None):
+                                    logger.warning(f"⚠️ [Core] Llamada de retención cortada abruptamente (cuenta {self.client_cuenta}). Registrando 'SE CORTA LLAMADA'.")
+                                    from tools.retencion.retencion_tools import _write_pollution
+                                    try:
+                                        await asyncio.to_thread(_write_pollution, self.client_cuenta, "SE CORTA LLAMADA")
+                                    except Exception as e:
+                                        logger.error(f"Error escribiendo SE CORTA LLAMADA: {e}")
+                            else:
+                                api_cfg = self.tools_dispatcher.api
+                                # Evitar doble ejecución si la IA ya inició el proceso de colgar o transferir
+                                if api_cfg and not getattr(api_cfg, 'call_hungup_sent', False) and not getattr(self, 'hangup_executed', False) and not getattr(self, 'transfer_executed', False):
+                                    if getattr(api_cfg, '_status_called', False):
+                                        logger.info(f"ℹ️ [Core] La llamada finalizó con tipificación explícita '{api_cfg._pending_status}'. Ejecutando colgado...")
+                                        await asyncio.to_thread(api_cfg.external_hangup)
+                                    else:
+                                        fallback_status = self.final_disposition
+                                        if not fallback_status:
+                                            status_opts = self.voice_cfg.get('dispositions', {})
+                                            fallback_status = status_opts.get('client_speech', 'CLCU') if self.client_speech_detected else status_opts.get('default_pending', 'NZBUZ')
+                                        logger.warning(f"⚠️ [Core] La llamada finalizó sin tipificación. Enviando fallback '{fallback_status}' y colgando...")
+                                        
+                                        if self.campania_name == 'retencion_2' and getattr(self, 'client_cuenta', None):
+                                            logger.warning(f"⚠️ [Core] Llamada de retención cortada abruptamente (cuenta {self.client_cuenta}). Registrando 'SE CORTA LLAMADA'.")
                                             from tools.retencion_2.retencion_tools import _write_pollution
-                                        else:
-                                            from tools.retencion.retencion_tools import _write_pollution
-                                        try:
-                                            await asyncio.to_thread(_write_pollution, self.client_cuenta, "SE CORTA LLAMADA")
-                                        except Exception as e:
-                                            logger.error(f"Error escribiendo SE CORTA LLAMADA: {e}")
+                                            try:
+                                                await asyncio.to_thread(_write_pollution, self.client_cuenta, "SE CORTA LLAMADA")
+                                            except Exception as e:
+                                                logger.error(f"Error escribiendo SE CORTA LLAMADA: {e}")
 
-                                    await asyncio.to_thread(api_cfg.external_status, fallback_status)
-                                    await asyncio.to_thread(api_cfg.external_hangup)
+                                        await asyncio.to_thread(api_cfg.external_status, fallback_status)
+                                        await asyncio.to_thread(api_cfg.external_hangup)
 
                         logger.info("🔄 [Core] Reiniciando sesión de voz para esperar la siguiente llamada...")
                 
