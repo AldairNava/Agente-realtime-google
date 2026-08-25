@@ -1867,7 +1867,9 @@ class VoiceAgent:
                         async def monitor():
                             was_in_call = False
                             db_failed = True
+                            logger.info("🔎 [Monitor] Tarea de monitorización iniciada y activa.")
                             while self.session_active:
+                                logger.info(f"🔎 [Monitor Loop] Nueva iteración. was_in_call={was_in_call}, campania={self.campania_name}")
                                 try:
                                     status = None
                                     lead_id = None

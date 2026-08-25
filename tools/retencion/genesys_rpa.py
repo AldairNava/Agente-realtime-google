@@ -200,12 +200,15 @@ class GenesysRPA:
 
     def is_in_call(self) -> bool:
         """Verifica si hay una llamada conectada leyendo la interfaz del Workspace."""
+        logger.info("[DEBUG] [is_in_call] 1. Entrando a la función is_in_call...")
         try:
             import pythoncom
+            logger.info("[DEBUG] [is_in_call] 2. Ejecutando CoInitialize...")
             pythoncom.CoInitialize()
             
-            # Instanciar localmente para evitar deadlocks de COM entre hilos (ThreadPool)
+            logger.info("[DEBUG] [is_in_call] 3. Intentando conectar a InteractionWorkspace.exe...")
             app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            logger.info("[DEBUG] [is_in_call] 4. Conectado exitosamente. Buscando ventana...")
             main_window = None
             for w in app.windows():
                 title = w.texts()[0] if w.texts() else ""
@@ -214,8 +217,10 @@ class GenesysRPA:
                     break
                     
             if not main_window:
-                logger.info("[DEBUG] No se encontró ninguna ventana que contenga 'workspace' en el título.")
+                logger.info("[DEBUG] [is_in_call] 5a. No se encontró ventana con 'workspace' en el título.")
                 return False
+                
+            logger.info("[DEBUG] [is_in_call] 5b. Ventana encontrada. Buscando controles...")
                 
             logger.info("[DEBUG] Buscando botones de llamada activa en la ventana Genesys...")
             # Verificar si existe el botón de transferencia o el de colgar (indica pantalla de interacción activa)
