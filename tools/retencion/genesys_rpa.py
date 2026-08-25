@@ -216,9 +216,14 @@ class GenesysRPA:
             if not main_window:
                 return False
                 
-            # Búsqueda ultra rápida delegada al motor UIA de Windows (evita marshalling a Python)
-            if main_window.child_window(title_re=".*Connected.*|.*Conectado.*").exists(timeout=0.5):
-                return True
+            # Verificar si existe el botón de transferencia o el de colgar (indica pantalla de interacción activa)
+            for btn_title in ("Instant call Transfer ", "Instant call Transfer", "End The Call", "End Call"):
+                try:
+                    btn = main_window.child_window(title=btn_title, control_type="Button")
+                    if btn.exists(timeout=0.1):
+                        return True
+                except Exception:
+                    pass
                 
         except Exception as e:
             logger.debug(f"Error verificando estado de llamada en Genesys: {e}")
@@ -245,13 +250,12 @@ class GenesysRPA:
                 return data
                 
             import re
-            # Extraer de forma rápida solo el elemento que parece un teléfono
-            # Como fallback, obtenemos todos los textos y los filtramos
+            # Extraer de forma rápida solo el elemento que parece un teléfono (soporta de 10 a 12 dígitos)
             for d in main_window.descendants():
                 try:
                     t = d.window_text()
                     if t:
-                        match = re.search(r"\b\d{10}\b", t)
+                        match = re.search(r"\b\d{10,12}\b", t)
                         if match:
                             data["phone_number"] = match.group(0)
                             data["lead_id"] = match.group(0) 
