@@ -1934,14 +1934,23 @@ class VoiceAgent:
                                                 in_call = await asyncio.to_thread(self.phantom.is_in_call)
                                             
                                             status = 'INCALL' if in_call else 'PAUSED'
-                                            
                                             phone_number = ""
                                             cuenta = ""
                                             lead_id_str = ""
                                             
                                             if in_call:
-                                                # Obtener lead_id de forma instantánea usando JS para comprobar si es reconexión
-                                                lead_id_str = await asyncio.to_thread(self.phantom.get_lead_id_fast)
+                                                if self.campania_name == 'retencion':
+                                                    call_data_str = await self._run_genesys_rpa(["--get-call-data"])
+                                                    call_data = {}
+                                                    try:
+                                                        call_data = json.loads(call_data_str)
+                                                    except Exception as je:
+                                                        logger.error(f"Error parseando call_data JSON en monitor: {je}")
+                                                    lead_id_str = call_data.get("lead_id", "")
+                                                    phone_number = call_data.get("phone_number", "")
+                                                    cuenta = call_data.get("CUENTA", "")
+                                                else:
+                                                    lead_id_str = await asyncio.to_thread(self.phantom.get_lead_id_fast)
                                         else:
                                             status = 'PAUSED'
 
