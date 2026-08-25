@@ -335,9 +335,21 @@ class GenesysRPA:
             if not main_window.exists(timeout=0.5):
                 return False
                 
-            btn = main_window.child_window(title="Done Ctrl+E", control_type="Button")
-            if btn.exists(timeout=0.5):
-                return True
+            # Intentar buscar por múltiples nombres comunes o AutomationIds
+            for title in ("Done Ctrl+E", "Done", "Done ", "Done (Ctrl+E)"):
+                try:
+                    btn = main_window.child_window(title=title, control_type="Button")
+                    if btn.exists(timeout=0.1):
+                        return True
+                except Exception:
+                    pass
+            for auto_id in ("DoneButton", "Done", "InteractionDoneButton"):
+                try:
+                    btn = main_window.child_window(auto_id=auto_id, control_type="Button")
+                    if btn.exists(timeout=0.1):
+                        return True
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug(f"Error verificando botón Done en Genesys: {e}")
         return False
@@ -354,11 +366,24 @@ class GenesysRPA:
             if not main_window.exists(timeout=0.5):
                 return False
                 
-            btn = main_window.child_window(title="Done Ctrl+E", control_type="Button")
-            if btn.exists(timeout=0.5):
-                btn.click()
-                logger.info("🖱️ Clic en botón 'Done Ctrl+E' realizado con éxito.")
-                return True
+            for title in ("Done Ctrl+E", "Done", "Done ", "Done (Ctrl+E)"):
+                try:
+                    btn = main_window.child_window(title=title, control_type="Button")
+                    if btn.exists(timeout=0.2):
+                        btn.click()
+                        logger.info(f"🖱️ Clic en botón Done ('{title}') realizado con éxito.")
+                        return True
+                except Exception:
+                    pass
+            for auto_id in ("DoneButton", "Done", "InteractionDoneButton"):
+                try:
+                    btn = main_window.child_window(auto_id=auto_id, control_type="Button")
+                    if btn.exists(timeout=0.2):
+                        btn.click()
+                        logger.info(f"🖱️ Clic en botón Done (auto_id: '{auto_id}') realizado con éxito.")
+                        return True
+                except Exception:
+                    pass
         except Exception as e:
             logger.error(f"❌ Error al hacer clic en Done Ctrl+E: {e}")
         return False
@@ -408,8 +433,21 @@ def main():
     parser.add_argument("--click-done", action="store_true", help="Haz clic en Done")
     parser.add_argument("--click-end", action="store_true", help="Haz clic en End Call / Colgar")
     parser.add_argument("--transfer", type=str, help="Transfiere la llamada al destino indicado")
+    parser.add_argument("--debug-window", action="store_true", help="Analizar y mostrar los controles de la ventana activa directamente por título")
     
     args = parser.parse_args()
+
+    # Procesar comando debug-window directamente
+    if args.debug_window:
+        import pythoncom
+        pythoncom.CoInitialize()
+        app = Application(backend="uia").connect(title_re=".*Workspace.*", timeout=2)
+        main_window = app.window(title_re=".*Workspace.*")
+        if main_window.exists(timeout=0.5):
+            main_window.print_control_identifiers()
+        else:
+            print("No se encontró la ventana del Workspace.")
+        return
 
     rpa = GenesysRPA(exe_path=args.exe)
     
