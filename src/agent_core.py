@@ -224,6 +224,15 @@ class VoiceAgent:
             extra_tools=extra_tools
         )
         
+        if self.campania_name == 'retencion':
+            # Filtrar y remover todas las herramientas de Vicidial API para evitar alucinaciones
+            self.tools_dispatcher.available_tools = [
+                tool for tool in self.tools_dispatcher.available_tools
+                if not hasattr(tool, '__self__') or not isinstance(tool.__self__, type(self.tools_dispatcher.api))
+            ]
+            # Regenerar el mapa inverso de tools
+            self.tools_dispatcher._map = {func.__name__: func for func in self.tools_dispatcher.available_tools}
+        
         logger.info(
             f"🚀 Agente listo | Campaña: {self.campania_name.upper()} | "
             f"Voz: {self.voice_cfg.get('voice', {}).get('name', 'IA')} | "
