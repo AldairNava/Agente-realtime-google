@@ -268,6 +268,233 @@ class GenesysRPA:
         """Fallback ultra rápido para el lead_id usado por agent_core.py."""
         return self.get_active_call_data().get("lead_id", "")
 
+    def transfer_call_genesys(self, destination: str) -> bool:
+        """
+        Realiza una transferencia de llamada en Genesys Workspace.
+        Destinos posibles:
+          - 'soporte' / 'tecnico': 75065
+          - 'servicios': 91305
+          - 'izzi movil': 75058
+        """
+        dest_lower = destination.strip().lower()
+        
+        if any(x in dest_lower for x in ("soporte", "tecnico", "técnico", "falla")):
+            number = "75065"
+        elif any(x in dest_lower for x in ("servicio", "servicios", "comercial")):
+            number = "91305"
+        elif any(x in dest_lower for x in ("movil", "móvil", "celular")):
+            number = "75058"
+        else:
+            logger.error(f"❌ Destino de transferencia no reconocido: {destination}")
+            return False
+            
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            # El título en la UI de Genesys puede terminar en un espacio "Instant call Transfer " o "Instant call Transfer"
+            btn = main_window.child_window(title="Instant call Transfer ", control_type="Button")
+            if not btn.exists(timeout=0.5):
+                btn = main_window.child_window(title="Instant call Transfer", control_type="Button")
+                
+            if btn.exists(timeout=0.5):
+                main_window.set_focus()
+                btn.click()
+                import time
+                time.sleep(1.0) # Esperar a que el popup/campo de búsqueda aparezca y tome foco
+                
+                # Enviar el número y dar enter
+                main_window.type_keys(f"{number}{{ENTER}}", protect_first=True)
+                logger.info(f"✅ Transferencia de llamada a {destination} ({number}) enviada en Genesys WDE.")
+                return True
+            else:
+                logger.error("❌ No se encontró el botón de transferencia 'Instant call Transfer'.")
+        except Exception as e:
+            logger.error(f"❌ Error durante transferencia en Genesys: {e}")
+        return False
+
+    def is_done_button_visible(self) -> bool:
+        """Verifica si el botón 'Done Ctrl+E' está visible en la ventana del Workspace."""
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            btn = main_window.child_window(title="Done Ctrl+E", control_type="Button")
+            if btn.exists(timeout=0.5):
+                return True
+        except Exception as e:
+            logger.debug(f"Error verificando botón Done en Genesys: {e}")
+        return False
+
+    def click_done_button(self) -> bool:
+        """Hace clic en el botón 'Done Ctrl+E'."""
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            btn = main_window.child_window(title="Done Ctrl+E", control_type="Button")
+            if btn.exists(timeout=0.5):
+                btn.click()
+                logger.info("🖱️ Clic en botón 'Done Ctrl+E' realizado con éxito.")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Error al hacer clic en Done Ctrl+E: {e}")
+        return False
+
+    def click_end_call_button(self) -> bool:
+        """Hace clic en el botón 'End The Call' para colgar desde el agente."""
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            btn = main_window.child_window(title="End The Call", control_type="Button")
+            if not btn.exists(timeout=0.5):
+                # Fallback alternativo "End Call"
+                btn = main_window.child_window(title="End Call", control_type="Button")
+                
+            if btn.exists(timeout=0.5):
+                btn.click()
+                logger.info("🖱️ Clic en botón 'End The Call' realizado con éxito.")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Error al hacer clic en End The Call: {e}")
+        return False
+
+    def is_call_hungup(self) -> bool:
+        """Determina si la llamada colgó comprobando si el botón Done está visible."""
+        return self.is_done_button_visible()
+
+
+    def is_done_button_visible(self) -> bool:
+        """Verifica si el botón 'Done Ctrl+E' está visible en la ventana del Workspace."""
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            btn = main_window.child_window(title="Done Ctrl+E", control_type="Button")
+            if btn.exists(timeout=0.5):
+                return True
+        except Exception as e:
+            logger.debug(f"Error verificando botón Done en Genesys: {e}")
+        return False
+
+    def click_done_button(self) -> bool:
+        """Hace clic en el botón 'Done Ctrl+E'."""
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            btn = main_window.child_window(title="Done Ctrl+E", control_type="Button")
+            if btn.exists(timeout=0.5):
+                btn.click()
+                logger.info("🖱️ Clic en botón 'Done Ctrl+E' realizado con éxito.")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Error al hacer clic en Done Ctrl+E: {e}")
+        return False
+
+    def click_end_call_button(self) -> bool:
+        """Hace clic en el botón 'End The Call' para colgar desde el agente."""
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            
+            app = Application(backend="uia").connect(path="InteractionWorkspace.exe", timeout=1)
+            main_window = None
+            for w in app.windows():
+                title = w.texts()[0] if w.texts() else ""
+                if "workspace" in title.lower():
+                    main_window = w
+                    break
+                    
+            if not main_window:
+                return False
+                
+            # Intentamos primero con "End The Call" (nombre exacto en Genesys WDE)
+            btn = main_window.child_window(title="End The Call", control_type="Button")
+            if not btn.exists(timeout=0.5):
+                # Fallback alternativo "End Call"
+                btn = main_window.child_window(title="End Call", control_type="Button")
+                
+            if btn.exists(timeout=0.5):
+                btn.click()
+                logger.info("🖱️ Clic en botón 'End The Call' realizado con éxito.")
+                return True
+        except Exception as e:
+            logger.error(f"❌ Error al hacer clic en End The Call: {e}")
+        return False
+
+    def is_call_hungup(self) -> bool:
+        """Determina si la llamada colgó comprobando si el botón Done está visible."""
+        return self.is_done_button_visible()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Genesys WDE RPA Client")
     parser.add_argument("--exe", type=str, default=DEFAULT_EXE_PATH, help="Ruta al ejecutable de Genesys")
