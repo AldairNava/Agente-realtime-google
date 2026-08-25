@@ -1909,6 +1909,7 @@ class VoiceAgent:
                                                     in_call = not is_done
                                                 else:
                                                     in_call = await asyncio.to_thread(self.phantom.is_in_call)
+                                                    logger.info(f"🔎 [Monitor Retencion] is_in_call retornado: {in_call}")
                                             else:
                                                 in_call = await asyncio.to_thread(self.phantom.is_in_call)
                                             

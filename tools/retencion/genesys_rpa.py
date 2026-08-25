@@ -214,19 +214,24 @@ class GenesysRPA:
                     break
                     
             if not main_window:
+                logger.info("[DEBUG] No se encontró ninguna ventana que contenga 'workspace' en el título.")
                 return False
                 
+            logger.info("[DEBUG] Buscando botones de llamada activa en la ventana Genesys...")
             # Verificar si existe el botón de transferencia o el de colgar (indica pantalla de interacción activa)
             for btn_title in ("Instant call Transfer ", "Instant call Transfer", "End The Call", "End Call"):
                 try:
                     btn = main_window.child_window(title=btn_title, control_type="Button")
-                    if btn.exists(timeout=0.1):
+                    exists = btn.exists(timeout=0.1)
+                    logger.info(f"[DEBUG] Checando botón '{btn_title}': existe={exists}")
+                    if exists:
                         return True
-                except Exception:
+                except Exception as ex:
+                    logger.info(f"[DEBUG] Error buscando botón '{btn_title}': {ex}")
                     pass
                 
         except Exception as e:
-            logger.debug(f"Error verificando estado de llamada en Genesys: {e}")
+            logger.info(f"[DEBUG] Excepción general en is_in_call: {e}")
             
         return False
 
