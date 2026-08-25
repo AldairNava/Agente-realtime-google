@@ -2039,17 +2039,18 @@ class VoiceAgent:
                                             # En paralelo, intentamos obtener el nombre del cliente desde el campo de texto "first_name" de la pestaña principal
                                             first_name = ""
                                             last_name = ""
-                                            for i in range(7):
-                                                call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
-                                                first_name = call_data.get("first_name", "").strip()
-                                                last_name = call_data.get("last_name", "").strip()
-                                                
-                                                is_valid = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST", "")
-                                                if is_valid:
-                                                    logger.info(f"👻 [Monitor] Nombre de cliente obtenido de input first_name en intento {i+1}: '{first_name}'")
-                                                    break
-                                                await asyncio.sleep(0.3)
-                                                
+                                            if self.campania_name != 'retencion':
+                                                for i in range(7):
+                                                    call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
+                                                    first_name = call_data.get("first_name", "").strip()
+                                                    last_name = call_data.get("last_name", "").strip()
+                                                    
+                                                    is_valid = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST", "")
+                                                    if is_valid:
+                                                        logger.info(f"👻 [Monitor] Nombre de cliente obtenido de input first_name en intento {i+1}: '{first_name}'")
+                                                        break
+                                                    await asyncio.sleep(0.3)
+                                                    
                                             self.client_name = f"{first_name} {last_name}".strip()
                                             
                                             if self.campania_name in ['plata', 'retencion', 'retencion_2']:
