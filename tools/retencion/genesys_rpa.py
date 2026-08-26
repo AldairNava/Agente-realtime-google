@@ -222,8 +222,19 @@ class GenesysRPA:
             try:
                 btn = main_window.child_window(title_re=".*(Instant call Transfer|End The Call|End Call).*", control_type="Button")
                 if btn.exists(timeout=0.5):
-                    logger.info("[DEBUG] Botón de interacción activa encontrado.")
-                    return True
+                    visible = False
+                    enabled = False
+                    try:
+                        visible = btn.is_visible()
+                        enabled = btn.is_enabled()
+                    except Exception:
+                        pass
+                    
+                    if visible and enabled:
+                        logger.info("[DEBUG] Botón de interacción activa encontrado (visible y habilitado).")
+                        return True
+                    else:
+                        logger.debug(f"Botón de interacción activa existe pero visible={visible}, habilitado={enabled}")
             except Exception as ex:
                 logger.info(f"[DEBUG] Error buscando botón de interacción activa: {ex}")
                 
