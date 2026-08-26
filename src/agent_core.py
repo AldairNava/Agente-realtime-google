@@ -2134,8 +2134,8 @@ class VoiceAgent:
                                 except Exception as me:
                                     logger.error(f"Error en monitor: {me}")
                                 
-                                # Polling dinámico: 0.1s para contestar al instante si no hay llamada; 1.0s si ya estamos en llamada
-                                sleep_time = 1.0 if was_in_call else 0.1
+                                # Polling dinámico optimizado: 2.0s para esperar llamada; 3.0s si ya estamos en llamada
+                                sleep_time = 3.0 if was_in_call else 2.0
                                 await asyncio.sleep(sleep_time)
 
                         tasks = [
