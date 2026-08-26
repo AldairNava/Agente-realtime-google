@@ -2238,6 +2238,7 @@ class VoiceAgent:
                             }
                             
                             # Leer registros existentes si el JSON ya existe
+                            calls_list = []
                             if os.path.exists(json_path):
                                 try:
                                     with open(json_path, "r", encoding="utf-8") as f:

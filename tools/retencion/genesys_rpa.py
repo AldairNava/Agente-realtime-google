@@ -218,17 +218,14 @@ class GenesysRPA:
             logger.info("[DEBUG] [is_in_call] 5b. Ventana encontrada. Buscando controles...")
                 
             logger.info("[DEBUG] Buscando botones de llamada activa en la ventana Genesys...")
-            # Verificar si existe el botón de transferencia o el de colgar (indica pantalla de interacción activa)
-            for btn_title in ("Instant call Transfer ", "Instant call Transfer", "End The Call", "End Call"):
-                try:
-                    btn = main_window.child_window(title=btn_title, control_type="Button")
-                    exists = btn.exists(timeout=0.1)
-                    logger.info(f"[DEBUG] Checando botón '{btn_title}': existe={exists}")
-                    if exists:
-                        return True
-                except Exception as ex:
-                    logger.info(f"[DEBUG] Error buscando botón '{btn_title}': {ex}")
-                    pass
+            # Realizar una búsqueda única por expresión regular para ahorrar tiempo y evitar timeouts por concurrencia
+            try:
+                btn = main_window.child_window(title_re=".*(Instant call Transfer|End The Call|End Call).*", control_type="Button")
+                if btn.exists(timeout=0.5):
+                    logger.info("[DEBUG] Botón de interacción activa encontrado.")
+                    return True
+            except Exception as ex:
+                logger.info(f"[DEBUG] Error buscando botón de interacción activa: {ex}")
                 
         except Exception as e:
             logger.info(f"[DEBUG] Excepción general en is_in_call: {e}")
