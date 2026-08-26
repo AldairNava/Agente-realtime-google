@@ -340,14 +340,36 @@ class GenesysRPA:
                 try:
                     btn = main_window.child_window(title=title, control_type="Button")
                     if btn.exists(timeout=0.1):
-                        return True
+                        visible = False
+                        enabled = False
+                        try:
+                            visible = btn.is_visible()
+                            enabled = btn.is_enabled()
+                        except Exception:
+                            pass
+                        
+                        if visible and enabled:
+                            return True
+                        else:
+                            logger.debug(f"Botón Done por título '{title}' existe pero visible={visible}, habilitado={enabled}")
                 except Exception:
                     pass
             for auto_id in ("DoneButton", "Done", "InteractionDoneButton"):
                 try:
                     btn = main_window.child_window(auto_id=auto_id, control_type="Button")
                     if btn.exists(timeout=0.1):
-                        return True
+                        visible = False
+                        enabled = False
+                        try:
+                            visible = btn.is_visible()
+                            enabled = btn.is_enabled()
+                        except Exception:
+                            pass
+                        
+                        if visible and enabled:
+                            return True
+                        else:
+                            logger.debug(f"Botón Done por auto_id '{auto_id}' existe pero visible={visible}, habilitado={enabled}")
                 except Exception:
                     pass
         except Exception as e:
@@ -370,18 +392,36 @@ class GenesysRPA:
                 try:
                     btn = main_window.child_window(title=title, control_type="Button")
                     if btn.exists(timeout=0.2):
-                        btn.click()
-                        logger.info(f"🖱️ Clic en botón Done ('{title}') realizado con éxito.")
-                        return True
+                        visible = False
+                        enabled = False
+                        try:
+                            visible = btn.is_visible()
+                            enabled = btn.is_enabled()
+                        except Exception:
+                            pass
+                        
+                        if visible and enabled:
+                            btn.click()
+                            logger.info(f"🖱️ Clic en botón Done ('{title}') realizado con éxito.")
+                            return True
                 except Exception:
                     pass
             for auto_id in ("DoneButton", "Done", "InteractionDoneButton"):
                 try:
                     btn = main_window.child_window(auto_id=auto_id, control_type="Button")
                     if btn.exists(timeout=0.2):
-                        btn.click()
-                        logger.info(f"🖱️ Clic en botón Done (auto_id: '{auto_id}') realizado con éxito.")
-                        return True
+                        visible = False
+                        enabled = False
+                        try:
+                            visible = btn.is_visible()
+                            enabled = btn.is_enabled()
+                        except Exception:
+                            pass
+                        
+                        if visible and enabled:
+                            btn.click()
+                            logger.info(f"🖱️ Clic en botón Done (auto_id: '{auto_id}') realizado con éxito.")
+                            return True
                 except Exception:
                     pass
         except Exception as e:
