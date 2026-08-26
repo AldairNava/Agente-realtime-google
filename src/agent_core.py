@@ -1931,13 +1931,9 @@ class VoiceAgent:
                                         if hasattr(self, 'phantom') and self.phantom:
                                             # Para retencion, si ya estamos en llamada, el colgado del cliente se detecta buscando el botón Done Ctrl+E.
                                             if self.campania_name == 'retencion':
-                                                if was_in_call:
-                                                    is_done_str = await self._run_genesys_rpa(["--is-done-visible"])
-                                                    is_done = (is_done_str == "TRUE")
-                                                    in_call = not is_done
-                                                else:
-                                                    in_call_str = await self._run_genesys_rpa(["--is-in-call"])
-                                                    in_call = (in_call_str == "TRUE")
+                                                in_call_str = await self._run_genesys_rpa(["--is-in-call"])
+                                                in_call = (in_call_str == "TRUE")
+                                                if not was_in_call:
                                                     logger.info(f"🔎 [Monitor Retencion] is_in_call retornado: {in_call}")
                                             else:
                                                 in_call = await asyncio.to_thread(self.phantom.is_in_call)
