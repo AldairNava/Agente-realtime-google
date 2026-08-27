@@ -495,7 +495,7 @@ class VoiceAgent:
         try:
             script_path = os.path.join(os.path.dirname(__file__), '..', 'tools', 'retencion', 'genesys_rpa.py')
             proc = await asyncio.create_subprocess_exec(
-                'py', '-3.12', script_path, *args_list,
+                sys.executable, script_path, *args_list,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -2145,8 +2145,8 @@ class VoiceAgent:
                                 except Exception as me:
                                     logger.error(f"Error en monitor: {me}")
                                 
-                                # Polling dinámico optimizado: 0.3s para esperar llamada; 1.5s si ya estamos en llamada
-                                sleep_time = 1.5 if was_in_call else 0.3
+                                # Polling dinámico optimizado: 0.05s para esperar llamada; 1.5s si ya estamos en llamada
+                                sleep_time = 1.5 if was_in_call else 0.05
                                 await asyncio.sleep(sleep_time)
 
                         tasks = [
