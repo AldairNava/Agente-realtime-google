@@ -2008,7 +2008,7 @@ class VoiceAgent:
                                                 brand_info = "Te identificas como de Cuentas Especiales de Izzi."
                                                 logger.info("📢 [IA] Enviando saludo inicial para Retención...")
                                                 await session.send_realtime_input(
-                                                    text=f"[SISTEMA: Llamada conectada. Teléfono: {phone_number}. IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti exactamente así: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]"
+                                                    text=f"[SISTEMA: Llamada conectada. Teléfono: {phone_number}. IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti exactamente así: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]\n\nhola"
                                                 )
                                             else:
                                                 logger.info("📢 [IA] Enviando saludo rápido inicial (sin demoras)...")
@@ -2079,23 +2079,15 @@ class VoiceAgent:
                                                 is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
                                                 self.client_name = f"{first_name} {last_name}".strip() if is_valid_name else ""
                                                 
-                                                if self.campania_name in ('retencion', 'retencion_2'):
-                                                    self._greeting_triggered = True
-                                                    self.greeting_trigger_time = asyncio.get_event_loop().time()
-                                                    context_text = (
-                                                        f"[SISTEMA: INFORMACIÓN DE LA LLAMADA. Nombre del cliente: {self.client_name or 'Desconocido'}. "
-                                                        f"Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. "
-                                                        f"IMPORTANTE: La llamada acaba de conectar en este instante. DEBES decir de viva voz tu saludo inicial exactamente así: '{greeting_phrase}' y esperar la respuesta del cliente. {brand_info}]\n\nhola"
-                                                    )
-                                                else:
+                                                if self.campania_name not in ('retencion', 'retencion_2'):
                                                     context_text = (
                                                         f"[SISTEMA: INFORMACIÓN DE LA LLAMADA. Nombre del cliente: {self.client_name or 'Desconocido'}. "
                                                         f"Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. "
                                                         f"REGLA: La llamada ya inició y ya dijiste de viva voz tu saludo inicial. Ahora debes esperar la respuesta "
                                                         f"del cliente y continuar la plática de acuerdo con tu guía de conversación. {brand_info}]"
                                                     )
-                                                logger.info(f"📢 [Monitor] Inyectando contexto de {self.campania_name}: {context_text}")
-                                                await session.send_realtime_input(text=context_text)
+                                                    logger.info(f"📢 [Monitor] Inyectando contexto de {self.campania_name}: {context_text}")
+                                                    await session.send_realtime_input(text=context_text)
                                             else:
                                                 # Esperar a que el agente termine de decir "Hola, hola buenas tardes" antes de inyectar la segunda frase
                                                 elapsed = asyncio.get_event_loop().time() - self.greeting_trigger_time
