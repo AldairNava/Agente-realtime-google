@@ -1897,7 +1897,7 @@ class VoiceAgent:
                             
                             cuenta_str = f" Cuenta: {self.client_cuenta}." if self.client_cuenta else ""
                             await session.send_realtime_input(
-                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name}. Teléfono: {self.client_phone}.{cuenta_str} IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti exactamente así: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]"
+                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name}. Teléfono: {self.client_phone}.{cuenta_str} IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti exactamente así: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]\n\nhola"
                             )
                         
                         async def monitor():
