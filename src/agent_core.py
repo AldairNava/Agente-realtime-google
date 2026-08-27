@@ -1123,7 +1123,7 @@ class VoiceAgent:
             if "1000" not in str(e) and "asyncio.exceptions.CancelledError" not in str(e):
                 logger.error(f"⚠️ [Core] Sesión de Gemini finalizada por el servidor: {e} (Tipo: {type(e).__name__})")
             else:
-                logger.info("ℹ️ [Core] Conexión de Gemini Live finalizada de forma normal.")
+                logger.info(f"ℹ️ [Core] Conexión de Gemini Live finalizada de forma normal. Detalle: {e}")
             self.session_active = False
 
     async def _process_tool_call(self, session, fc):
