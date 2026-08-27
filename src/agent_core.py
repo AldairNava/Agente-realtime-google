@@ -1044,7 +1044,8 @@ class VoiceAgent:
                     if not is_muted:
                         await session.send_realtime_input(audio=types.Blob(data=chunk, mime_type="audio/pcm;rate=16000"))
         except Exception as e:
-            if "1000" not in str(e): logger.error(f"Error _send_audio: {e}")
+            if "1000" not in str(e) and "asyncio.exceptions.CancelledError" not in str(e):
+                logger.error(f"Error _send_audio: {e}")
             self.session_active = False
 
     async def _receive_responses(self, session):
@@ -1104,15 +1105,25 @@ class VoiceAgent:
                         self._audio_counter += 1
                         if self._audio_counter % 20 == 0:
                             logger.info(f"🔊 [En línea] Recibiendo audio de Gemini ({len(audio_chunk)} bytes/chunk)")
-                    if response.text:
-                        logger.info(f"🤖 [IA]: {response.text}")
+                    resp_text = None
+                    if response.server_content and response.server_content.model_turn:
+                        texts = [p.text for p in response.server_content.model_turn.parts if p.text]
+                        if texts:
+                            resp_text = "".join(texts)
+                            
+                    if resp_text:
+                        logger.info(f"🤖 [IA]: {resp_text}")
                         if hasattr(self, 'call_transcript'):
-                            self.call_transcript.append(f"Agente: {response.text}")
+                            self.call_transcript.append(f"Agente: {resp_text}")
                     if response.tool_call:
                         for fc in response.tool_call.function_calls:
                             asyncio.create_task(self._process_tool_call(session, fc))
         except Exception as e:
-            if "1000" not in str(e): logger.error(f"Error Gemini Session: {e}")
+            # Si el servidor desconecta, registrar el motivo específico de forma clara
+            if "1000" not in str(e) and "asyncio.exceptions.CancelledError" not in str(e):
+                logger.error(f"⚠️ [Core] Sesión de Gemini finalizada por el servidor: {e} (Tipo: {type(e).__name__})")
+            else:
+                logger.info("ℹ️ [Core] Conexión de Gemini Live finalizada de forma normal.")
             self.session_active = False
 
     async def _process_tool_call(self, session, fc):
