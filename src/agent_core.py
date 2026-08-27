@@ -989,18 +989,23 @@ class VoiceAgent:
                     continue
 
                 if not getattr(self, '_greeting_triggered', False):
-                    self._greeting_triggered = True
-                    self.greeting_trigger_time = asyncio.get_event_loop().time()
-                    if self.voice_mode == 'grabacion' and self.grabacion_frase:
-                        logger.info(f"🎙️ [Grabación] Enviando frase: '{self.grabacion_frase[:60]}...'")
-                        await session.send_realtime_input(text=f"Di la siguiente frase exactamente: {self.grabacion_frase}")
-                    elif self.voice_mode == 'hibrido':
-                        logger.info("📨 [Inicio] Enviando activador para saludo...")
-                        await session.send_realtime_input(text="hola")
-                    else:
-                        logger.info("📢 [IA] Iniciando saludo natural (Live)...")
-                        trigger = self.voice_cfg.get('behavior', {}).get('auto_greet_message', "Hola, buenas tardes.")
-                        await session.send_realtime_input(text=trigger)
+                     # Si es campaña de retención en producción/pruebas, omitimos el disparo inicial al conectar el socket.
+                     # El saludo se disparará cuando el monitor detecte la llamada conectada.
+                     if self.campania_name in ('retencion', 'retencion_2') and self.execution_mode in ('produccion', 'pruebas'):
+                         pass
+                     else:
+                         self._greeting_triggered = True
+                         self.greeting_trigger_time = asyncio.get_event_loop().time()
+                         if self.voice_mode == 'grabacion' and self.grabacion_frase:
+                             logger.info(f"🎙️ [Grabación] Enviando frase: '{self.grabacion_frase[:60]}...'")
+                             await session.send_realtime_input(text=f"Di la siguiente frase exactamente: {self.grabacion_frase}")
+                         elif self.voice_mode == 'hibrido':
+                             logger.info("📨 [Inicio] Enviando activador para saludo...")
+                             await session.send_realtime_input(text="hola")
+                         else:
+                             logger.info("📢 [IA] Iniciando saludo natural (Live)...")
+                             trigger = self.voice_cfg.get('behavior', {}).get('auto_greet_message', "Hola, buenas tardes.")
+                             await session.send_realtime_input(text=trigger)
 
                 if self.vad.is_speech(chunk):
                     self.client_speech_detected = True
@@ -2074,12 +2079,21 @@ class VoiceAgent:
                                                 is_valid_name = first_name and first_name.upper() not in ("TITULAR", "PROSPECTO", "CLIENTE", "DESCONOCIDO", "UNKNOWN", "TEST")
                                                 self.client_name = f"{first_name} {last_name}".strip() if is_valid_name else ""
                                                 
-                                                context_text = (
-                                                    f"[SISTEMA: INFORMACIÓN DE LA LLAMADA. Nombre del cliente: {self.client_name or 'Desconocido'}. "
-                                                    f"Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. "
-                                                    f"REGLA: La llamada ya inició y ya dijiste de viva voz tu saludo inicial. Ahora debes esperar la respuesta "
-                                                    f"del cliente y continuar la plática de acuerdo con tu guía de conversación. {brand_info}]"
-                                                )
+                                                if self.campania_name in ('retencion', 'retencion_2'):
+                                                    self._greeting_triggered = True
+                                                    self.greeting_trigger_time = asyncio.get_event_loop().time()
+                                                    context_text = (
+                                                        f"[SISTEMA: INFORMACIÓN DE LA LLAMADA. Nombre del cliente: {self.client_name or 'Desconocido'}. "
+                                                        f"Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. "
+                                                        f"IMPORTANTE: La llamada acaba de conectar en este instante. DEBES decir de viva voz tu saludo inicial exactamente así: '{greeting_phrase}' y esperar la respuesta del cliente. {brand_info}]\n\nhola"
+                                                    )
+                                                else:
+                                                    context_text = (
+                                                        f"[SISTEMA: INFORMACIÓN DE LA LLAMADA. Nombre del cliente: {self.client_name or 'Desconocido'}. "
+                                                        f"Teléfono: {self.client_phone}. Cuenta: {self.client_cuenta}. "
+                                                        f"REGLA: La llamada ya inició y ya dijiste de viva voz tu saludo inicial. Ahora debes esperar la respuesta "
+                                                        f"del cliente y continuar la plática de acuerdo con tu guía de conversación. {brand_info}]"
+                                                    )
                                                 logger.info(f"📢 [Monitor] Inyectando contexto de {self.campania_name}: {context_text}")
                                                 await session.send_realtime_input(text=context_text)
                                             else:
