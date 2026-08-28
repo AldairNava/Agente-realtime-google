@@ -685,7 +685,8 @@ class VoiceAgent:
                 "cuenta": self.client_cuenta or "Desconocido",
                 "telefono": self.client_phone or "Desconocido",
                 "estatus": "TRANSFERIDO",
-                "resumen": f"Transferido al área: {area}",
+                "motivo": motivo,
+                "resumen": f"Transferido al área: {area} (Motivo: {motivo})",
                 "audio": os.path.basename(self.recorder.call_path) if self.recorder else None
             }
             calls_list.append(call_data)
