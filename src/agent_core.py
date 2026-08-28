@@ -152,7 +152,6 @@ class VoiceAgent:
                     guardar_tipo_cancelacion,
                     guardar_motivo_cancelacion,
                     generar_caso_negocio_siebel,
-                    self.obtener_datos_cliente_asincrono,
                     guardar_resumen_transferencia,
                     colgar_llamada_genesis,
                     self.guardar_registro_llamada_retencion,
@@ -644,14 +643,23 @@ class VoiceAgent:
 
         return {"status": "ok", "message": "Llamada finalizada activamente en Genesys y registro guardado."}
 
-    def transferir_llamada_retencion(self, area: str) -> dict:
+    def transferir_llamada_retencion(self, area: str, motivo: str = "OTROS") -> dict:
         """
         Transfiere la llamada actual en Genesys al área especificada.
         Llama a esta herramienta cuando el cliente requiera ser transferido a otro departamento.
 
         Args:
-            area: El área a la que se transfiere ('soporte', 'servicios', 'izzi movil'). Puede venir en cualquier formato o frase descriptiva.
+            area: El área a la que se transfiere ('soporte', 'servicios', 'izzi movil').
+            motivo: El motivo de la llamada detectado ('NEGOCIOS PRO', 'IZZI MOVIL', 'OTROS', 'SERVICIOS', 'MODULO', 'SOPORTE TECNICO', 'SUPERVISOR', 'COBRANZA', 'FTTH', 'RETENCIONES', 'PAGOS IVR', 'DR WIFI', 'TELEMARKETING').
         """
+        # Guardar en base de datos 'pollution' en MySQL
+        try:
+            from tools.fallback_db import guardar_registro_pollution
+            db_cuenta = self.client_cuenta if self.client_cuenta else "Desconocida"
+            guardar_registro_pollution(cuenta=db_cuenta, motivo=motivo)
+        except Exception as db_err:
+            logger.error(f"❌ Error al guardar en BD pollution antes de transferir: {db_err}")
+
         # Guardar registro en JSON antes de transferir
         try:
             today_str = datetime.now().strftime("%Y%m%d")

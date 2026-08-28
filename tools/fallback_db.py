@@ -101,3 +101,60 @@ def guardar_cliente_fallback(
         return {"status": "error", "message": str(e)}
     finally:
         conn.close()
+
+
+def guardar_registro_pollution(cuenta: str, motivo: str) -> dict:
+    """
+    Guarda los datos de transferencia en la tabla 'pollution'.
+    """
+    conn = get_connection()
+    if not conn:
+        return {"status": "error", "message": "No se pudo conectar a la base de datos."}
+
+    try:
+        # Los campos obligatorios solicitados por el usuario
+        caso = "TRANSFERENCIA"
+        agente = "14080"
+        status = "not found cuenta"
+        resumen = "pollution agente retecion"
+        
+        # Validar que el motivo sea válido. Si no lo es, dejar como "OTROS" o lo que corresponda.
+        # Lista de motivos válidos:
+        motivos_validos = [
+            "NEGOCIOS PRO", "IZZI MOVIL", "OTROS", "SERVICIOS", "MODULO", 
+            "SOPORTE TECNICO", "SUPERVISOR", "COBRANZA", "FTTH", 
+            "RETENCIONES", "PAGOS IVR", "DR WIFI", "TELEMARKETING"
+        ]
+        
+        motivo_upper = str(motivo).upper().strip() if motivo else "OTROS"
+        if motivo_upper not in motivos_validos:
+            # Intentar ver si coincide de forma parcial, si no dejar OTROS
+            coincidencia = "OTROS"
+            for mv in motivos_validos:
+                if mv in motivo_upper:
+                    coincidencia = mv
+                    break
+            motivo_final = coincidencia
+        else:
+            motivo_final = motivo_upper
+
+        sql = """
+        INSERT INTO pollution (caso, cuenta, agente, status, resumen, motivo)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        params = (caso, cuenta, agente, status, resumen, motivo_final)
+
+        with conn.cursor() as cursor:
+            cursor.execute(sql, params)
+            new_id = cursor.lastrowid
+        conn.commit()
+
+        logger.info(f"📊 [FallbackDB] Registro insertado en la tabla 'pollution' (ID: {new_id}, Cuenta: '{cuenta}', Motivo: '{motivo_final}')")
+        return {"status": "ok", "id": new_id, "cuenta": cuenta, "motivo": motivo_final}
+
+    except Exception as e:
+        logger.error(f"❌ [FallbackDB] Error al insertar en la tabla 'pollution': {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        conn.close()
+
