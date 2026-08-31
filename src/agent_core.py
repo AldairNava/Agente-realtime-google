@@ -1483,6 +1483,20 @@ class VoiceAgent:
                     
         self.session_active = False
 
+    async def _idle_session_watchdog(self):
+        """Vigila la sesión de Gemini y la renueva automáticamente cada 3 minutos si no hay llamada activa."""
+        start_time = asyncio.get_event_loop().time()
+        while self.session_active:
+            await asyncio.sleep(5)
+            # Si la llamada ya entró o la IA ya inició la conversación, salimos del vigilante
+            if getattr(self, 'vicidial_incall', False) or getattr(self, '_greeting_triggered', False):
+                break
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= 180:  # 3 minutos
+                logger.info("🔄 [Keep-Alive] 3 minutos en espera sin llamada activa. Renovando sesión de Gemini para mantenerla fresca...")
+                self.session_active = False
+                break
+
     async def _silence_watchdog(self, session):
         logger.info("⏱️ [Watchdog Silencio] Inicializado.")
         
@@ -1770,7 +1784,7 @@ class VoiceAgent:
             system_instruction=types.Content(parts=[types.Part.from_text(text=system_instruction)]),
         )
 
-        model = "models/gemini-2.1-flash-live-preview"
+        model = "models/gemini-3.1-flash-live-preview"
         # Logueo en Vicidial o Genesys si es producción o pruebas
         if self.execution_mode in ('produccion', 'pruebas'):
             api_cfg = self.tools_dispatcher.api
@@ -1875,6 +1889,12 @@ class VoiceAgent:
                     capture_path = os.path.join(self.capture_dir, self.grabacion_salida if self.grabacion_salida.endswith('.wav') else self.grabacion_salida + '.wav')
                     self.voice_capture = AgentVoiceCapture(output_path=capture_path)
 
+                if self.execution_mode == 'local' and self.campania_name in ('retencion', 'retencion_2'):
+                    print("\n" + "="*70)
+                    print(">>> PRESIONA [ENTER] AQUI EN LA CONSOLA PARA QUE EL AGENTE HABLE <<<")
+                    print("="*70 + "\n")
+                    await asyncio.to_thread(input)
+
                 try:
                     async with SafeLiveConnection(self.client.aio.live.connect(model=model, config=config)) as session:
                         self.session = session
@@ -1899,11 +1919,7 @@ class VoiceAgent:
                             else:
                                 greeting_phrase = f"Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con {self.client_name}?"
                                 brand_info = ""
-                            if self.campania_name in ('retencion', 'retencion_2'):
-                                print("\n" + "="*70)
-                                print("🛎️  PRESIONA [ENTER] AQUI EN LA CONSOLA PARA QUE EL AGENTE HABLE 🛎️")
-                                print("="*70 + "\n")
-                                await asyncio.to_thread(input)
+
 
                             logger.info(f"📢 [Local] Inyectando contexto de prueba para cliente: {self.client_name}")
                             self._greeting_triggered = True
@@ -2167,7 +2183,8 @@ class VoiceAgent:
                         tasks = [
                             asyncio.create_task(self._send_audio(session)),
                             asyncio.create_task(self._receive_responses(session)),
-                            asyncio.create_task(self._play_audio())
+                            asyncio.create_task(self._play_audio()),
+                            asyncio.create_task(self._idle_session_watchdog())
                         ]
                         if self.voice_mode != 'grabacion':
                             if self.execution_mode == 'local':
