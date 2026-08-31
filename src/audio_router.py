@@ -27,7 +27,7 @@ class AudioRouter:
     """
     Decide si reproducir un WAV pregrabado o generar audio con TTS bajo demanda.
     Los audios pregrabados se sirven instantáneamente (0 latencia).
-    Los dinámicos se generan con gemini-2.5-flash-preview-tts y se cachean.
+    Los dinámicos se generan con gemini-2.5-flash y se cachean.
     """
 
     def __init__(self, api_key: str, scripts_path: str = None, audio_dir: str = None):
@@ -43,7 +43,7 @@ class AudioRouter:
         
         self.tts_config = data.get('tts_config', {})
         self.scripts = data.get('scripts', {})
-        self.model = self.tts_config.get('model', 'gemini-2.5-flash-preview-tts')
+        self.model = self.tts_config.get('model', 'gemini-2.5-flash')
         self.voice_name = self.tts_config.get('voice_name', 'Kore')
         self.audio_profile = self.tts_config.get('audio_profile', '')
         

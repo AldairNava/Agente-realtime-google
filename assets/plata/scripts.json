@@ -1,6 +1,6 @@
 {
     "tts_config": {
-        "model": "gemini-2.5-flash-preview-tts",
+        "model": "gemini-2.5-flash",
         "voice_name": "Kore",
         "sample_rate": 24000,
         "sample_width": 2,
@@ -13,14 +13,18 @@
             "category": "saludo",
             "text": "Hola, buenas tardes, me presento mi nombre es Liliana Hernández, ¿tengo el gusto con {nombre_cliente}?",
             "tts_direction": "Di con tono amigable y profesional, sonriendo al hablar:",
-            "variables": ["nombre_cliente"],
+            "variables": [
+                "nombre_cliente"
+            ],
             "prerecord": false
         },
         "plata_saludo_no_titular": {
             "category": "saludo",
             "text": "¿Con quién tengo el gusto? Entendido. ¿Qué parentesco tiene con {nombre_cliente}? ¿En qué horario podría localizarle?",
             "tts_direction": "Pregunta de manera cordial y atenta:",
-            "variables": ["nombre_cliente"],
+            "variables": [
+                "nombre_cliente"
+            ],
             "prerecord": false
         },
         "plata_pitch_inicial": {

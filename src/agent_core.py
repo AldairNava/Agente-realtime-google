@@ -1621,7 +1621,7 @@ class VoiceAgent:
             logger.info("Generating call summary with Gemini...")
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
-                model="gemini-3.1-flash",
+                model="gemini-2.5-flash",
                 contents=prompt
             )
             summary = response.text.strip() if response.text else "No se pudo generar el resumen."
@@ -1770,7 +1770,7 @@ class VoiceAgent:
             system_instruction=types.Content(parts=[types.Part.from_text(text=system_instruction)]),
         )
 
-        model = "models/gemini-3.1-flash-live-preview"
+        model = "models/gemini-2.1-flash-live-preview"
         # Logueo en Vicidial o Genesys si es producción o pruebas
         if self.execution_mode in ('produccion', 'pruebas'):
             api_cfg = self.tools_dispatcher.api

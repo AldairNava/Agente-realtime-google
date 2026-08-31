@@ -1,6 +1,6 @@
 {
     "tts_config": {
-        "model": "gemini-2.5-flash-preview-tts",
+        "model": "gemini-2.5-flash",
         "voice_name": "Kore",
         "sample_rate": 24000,
         "sample_width": 2,

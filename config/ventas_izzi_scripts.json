@@ -1,6 +1,6 @@
 {
     "tts_config": {
-        "model": "gemini-2.5-flash-preview-tts",
+        "model": "gemini-2.5-flash",
         "voice_name": "Kore",
         "sample_rate": 24000,
         "sample_width": 2,
@@ -34,7 +34,9 @@
             "category": "saludo",
             "text": "¡Hola, buenas tardes! Le llamo de izzi. Mi nombre es Liliana Hernández. ¿Tengo el gusto de hablar con {nombre_cliente}?",
             "tts_direction": "Di con tono amigable y personalizado, pronunciando el nombre claramente:",
-            "variables": ["nombre_cliente"],
+            "variables": [
+                "nombre_cliente"
+            ],
             "prerecord": false
         },
         "izzi_enganche": {
@@ -181,7 +183,10 @@
             "category": "transferencia",
             "text": "Perfecto, {nombre_cliente}. Lo voy a comunicar con un asesor especializado que le dará todos los detalles del paquete {paquete_elegido} y le ayudará con la contratación. No cuelgue por favor, en un momento lo atienden.",
             "tts_direction": "Di con tono entusiasta y personalizado, mencionando el nombre y paquete con claridad:",
-            "variables": ["nombre_cliente", "paquete_elegido"],
+            "variables": [
+                "nombre_cliente",
+                "paquete_elegido"
+            ],
             "prerecord": false
         },
         "izzi_sin_ejecutivos": {
@@ -230,7 +235,9 @@
             "category": "cierre",
             "text": "{nombre_cliente}, le agradezco mucho su tiempo. Recuerde que en izzi siempre tenemos opciones para usted. Si en algún momento le interesa, puede visitarnos en izzi punto mx o llamar al 800 120 5000. ¡Que tenga excelente día!",
             "tts_direction": "Di con tono cálido y personalizado, pronunciando el nombre con cariño:",
-            "variables": ["nombre_cliente"],
+            "variables": [
+                "nombre_cliente"
+            ],
             "prerecord": false
         },
         "izzi_no_es_titular": {
