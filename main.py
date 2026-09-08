@@ -500,7 +500,7 @@ async def main():
             # Iniciar el Vigilante Genesys WDE por Señales TXT
             log_watcher = open("genesys_watcher_console.log", "w", encoding="utf-8")
             rpa_watcher = subprocess.Popen(
-                [sys.executable, "tools/retencion/genesys_rpa.py", "--watch"],
+                [sys.executable, "-u", "tools/retencion/genesys_rpa.py", "--watch"],
                 cwd=os.path.dirname(os.path.abspath(__file__)),
                 stdout=log_watcher,
                 stderr=subprocess.STDOUT

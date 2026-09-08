@@ -217,11 +217,10 @@ class GenesysRPA:
                 
             logger.info("[DEBUG] [is_in_call] 5b. Ventana encontrada. Buscando controles...")
                 
-            logger.info("[DEBUG] Buscando botones de llamada activa en la ventana Genesys...")
-            # Realizar una búsqueda única por expresión regular para ahorrar tiempo y evitar timeouts por concurrencia
+            # 1. Búsqueda por botones de llamada activa (End the call, Instant call Transfer, Hold, etc.)
             try:
-                btn = main_window.child_window(title_re=".*(Instant call Transfer|End The Call|End Call).*", control_type="Button")
-                if btn.exists(timeout=0.5):
+                btn = main_window.child_window(title_re=r"(?i).*(instant.*transfer|end.*call|hold.*call).*", control_type="Button")
+                if btn.exists(timeout=0.3):
                     visible = False
                     enabled = False
                     try:
@@ -233,10 +232,18 @@ class GenesysRPA:
                     if visible and enabled:
                         logger.info("[DEBUG] Botón de interacción activa encontrado (visible y habilitado).")
                         return True
-                    else:
-                        logger.debug(f"Botón de interacción activa existe pero visible={visible}, habilitado={enabled}")
             except Exception as ex:
-                logger.info(f"[DEBUG] Error buscando botón de interacción activa: {ex}")
+                logger.debug(f"[DEBUG] Error buscando botón de interacción activa: {ex}")
+
+            # 2. Búsqueda por indicadores de texto o imagen de llamada conectada (Connected, Outbound call, Inbound call)
+            try:
+                for ctype in ("Text", "Image"):
+                    indicator = main_window.child_window(title_re=r"(?i).*(connected|outbound call|inbound call).*", control_type=ctype)
+                    if indicator.exists(timeout=0.2):
+                        logger.info(f"[DEBUG] Indicador de llamada activa ({ctype}) encontrado.")
+                        return True
+            except Exception:
+                pass
                 
         except Exception as e:
             logger.info(f"[DEBUG] Excepción general en is_in_call: {e}")
@@ -290,15 +297,20 @@ class GenesysRPA:
         """
         dest_lower = destination.strip().lower()
         
-        if any(x in dest_lower for x in ("soporte", "tecnico", "técnico", "falla")):
+        # Si ya es un número directo
+        import re
+        num_match = re.search(r"\b\d{4,10}\b", destination)
+        if num_match:
+            number = num_match.group(0)
+        elif any(x in dest_lower for x in ("soporte", "tecnico", "técnico", "falla", "dr wifi")):
             number = "75065"
-        elif any(x in dest_lower for x in ("servicio", "servicios", "comercial")):
+        elif any(x in dest_lower for x in ("servicio", "servicios", "comercial", "modulo", "módulo", "cobranza", "pagos")):
             number = "91305"
         elif any(x in dest_lower for x in ("movil", "móvil", "celular")):
             number = "75058"
         else:
-            logger.error(f"❌ Destino de transferencia no reconocido: {destination}")
-            return False
+            logger.warning(f"⚠️ Destino de transferencia '{destination}' no reconocido. Usando fallback de soporte.")
+            number = "75065"
             
         try:
             import pythoncom
@@ -317,12 +329,30 @@ class GenesysRPA:
                 
             if btn.exists(timeout=0.5):
                 main_window.set_focus()
-                btn.click()
+                try:
+                    btn.click_input()
+                except Exception:
+                    btn.click()
+                    
                 import time
-                time.sleep(1.0) # Esperar a que el popup/campo de búsqueda aparezca y tome foco
+                from pywinauto.keyboard import send_keys
+                time.sleep(0.8) # Esperar a que el popup/buscador tome foco activo
                 
-                # Enviar el número y dar enter
-                main_window.type_keys(f"{number}{{ENTER}}", protect_first=True)
+                # Si hay campo de edición activo, intentar enfocarlo
+                try:
+                    search_box = main_window.child_window(control_type="Edit")
+                    if search_box.exists(timeout=0.3):
+                        search_box.set_focus()
+                except Exception:
+                    pass
+
+                # Enviar los dígitos usando SendInput del sistema operativo al control activo
+                logger.info(f"⌨️ [Transfer] Escribiendo número de transferencia: {number}...")
+                send_keys(number, pause=0.06)
+                time.sleep(0.6) # Esperar a que Genesys filtre el resultado en la lista
+                logger.info("⌨️ [Transfer] Enviando Enter para confirmar transferencia...")
+                send_keys("{ENTER}")
+                time.sleep(0.5)
                 logger.info(f"✅ Transferencia de llamada a {destination} ({number}) enviada en Genesys WDE.")
                 return True
             else:
@@ -550,15 +580,20 @@ class GenesysRPA:
                     call_data = self.get_active_call_data()
                     current_phone = call_data.get("phone_number", "").strip()
 
-                    # Comprobar si es un número telefónico diferente
-                    # Si coincide con el último transferido/atendido, no disparamos llamada.txt
-                    if current_phone and current_phone == last_processed_phone:
-                        # Es la llamada que está atendiendo el compañero tras transferir
-                        logger.debug(f"[Watcher] Llamada activa con mismo teléfono ({current_phone}) - atendida por compañero. Ignorando.")
-                    elif current_phone and current_phone != last_processed_phone:
-                        # Es una NUEVA llamada con número distinto
-                        if not llamada_file.exists():
-                            logger.info(f"🛎️ [Watcher] NUEVA llamada detectada ({current_phone}). Escribiendo llamada.txt...")
+                    # Solo ignorar si coincide con el teléfono TRANSFERIDO por el agente a un compañero
+                    transferred_phone = ""
+                    if ultimo_tel_file.exists():
+                        try:
+                            transferred_phone = ultimo_tel_file.read_text(encoding="utf-8").strip()
+                        except Exception:
+                            pass
+
+                    if current_phone and transferred_phone and current_phone == transferred_phone:
+                        logger.debug(f"[Watcher] Llamada activa con teléfono transferido a compañero ({current_phone}). Ignorando.")
+                    else:
+                        # Si no hay llamada.txt y no se había marcado en llamada en este ciclo, crear la señal
+                        if not llamada_file.exists() and not was_in_call:
+                            logger.info(f"🛎️ [Watcher] Llamada activa detectada ({current_phone}). Escribiendo llamada.txt...")
                             call_payload = {
                                 "phone_number": current_phone,
                                 "lead_id": call_data.get("lead_id", current_phone),
@@ -567,37 +602,6 @@ class GenesysRPA:
                             }
                             llamada_file.write_text(json.dumps(call_payload, ensure_ascii=False), encoding="utf-8")
                             colgado_file.unlink(missing_ok=True)
-                            last_processed_phone = current_phone
-                            ultimo_tel_file.write_text(current_phone, encoding="utf-8")
-                    elif not current_phone:
-                        # Si no hay teléfono extraído aún, pero es llamada activa y no había llamada
-                        if not llamada_file.exists() and not was_in_call:
-                            # Reintentar extraer teléfono con un breve respiro de 0.3s antes de emitir señal
-                            time.sleep(0.3)
-                            call_data = self.get_active_call_data()
-                            current_phone = call_data.get("phone_number", "").strip()
-                            if current_phone and current_phone != last_processed_phone:
-                                logger.info(f"🛎️ [Watcher] NUEVA llamada detectada en reintento ({current_phone}). Escribiendo llamada.txt...")
-                                call_payload = {
-                                    "phone_number": current_phone,
-                                    "lead_id": call_data.get("lead_id", current_phone),
-                                    "CUENTA": call_data.get("CUENTA", ""),
-                                    "timestamp": time.time()
-                                }
-                                llamada_file.write_text(json.dumps(call_payload, ensure_ascii=False), encoding="utf-8")
-                                colgado_file.unlink(missing_ok=True)
-                                last_processed_phone = current_phone
-                                ultimo_tel_file.write_text(current_phone, encoding="utf-8")
-                            elif not current_phone:
-                                logger.info("🛎️ [Watcher] Llamada detectada sin teléfono. Escribiendo llamada.txt...")
-                                call_payload = {
-                                    "phone_number": "",
-                                    "lead_id": "",
-                                    "CUENTA": "",
-                                    "timestamp": time.time()
-                                }
-                                llamada_file.write_text(json.dumps(call_payload, ensure_ascii=False), encoding="utf-8")
-                                colgado_file.unlink(missing_ok=True)
 
                     was_in_call = True
 
@@ -608,6 +612,7 @@ class GenesysRPA:
                         logger.info("📞 [Watcher] Fin de llamada detectado en Genesys. Escribiendo colgado.txt...")
                         colgado_file.write_text("CALL_HUNGUP", encoding="utf-8")
                         llamada_file.unlink(missing_ok=True)
+                        ultimo_tel_file.unlink(missing_ok=True)
                         was_in_call = False
 
                 # También revisar si el botón Done está visible (llamada finalizada)
