@@ -465,6 +465,158 @@ class GenesysRPA:
         """Determina si la llamada colgó comprobando si el botón Done está visible."""
         return self.is_done_button_visible()
 
+    def start_watcher(self, signals_dir=None):
+        """
+        Bucle vigilante continuo de Genesys WDE.
+        Monitorea llamadas entrantes y escribe señales en tools/retencion/senales/.
+        Filtra para evitar repetir llamadas si el número telefónico sigue siendo el mismo (llamada transferida/atendida por compañero).
+        """
+        import os
+        import json
+        from pathlib import Path
+
+        if not signals_dir:
+            signals_dir = Path(__file__).parent / "senales"
+        else:
+            signals_dir = Path(signals_dir)
+        signals_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"👀 [Watcher] Vigilante de Genesys iniciado. Carpeta de señales: {signals_dir}")
+
+        llamada_file = signals_dir / "llamada.txt"
+        colgado_file = signals_dir / "colgado.txt"
+        ultimo_tel_file = signals_dir / "ultimo_telefono.txt"
+
+        # Archivos de acción que puede mandar agent_core
+        accion_transferir = signals_dir / "accion_transferir.txt"
+        accion_colgar = signals_dir / "accion_colgar.txt"
+        accion_done = signals_dir / "accion_done.txt"
+
+        last_processed_phone = ""
+        if ultimo_tel_file.exists():
+            try:
+                last_processed_phone = ultimo_tel_file.read_text(encoding="utf-8").strip()
+            except Exception:
+                pass
+
+        was_in_call = False
+
+        while True:
+            try:
+                # 1. Atender acciones solicitadas por el agente
+                if accion_transferir.exists():
+                    try:
+                        dest = accion_transferir.read_text(encoding="utf-8").strip()
+                        accion_transferir.unlink(missing_ok=True)
+                        logger.info(f"🔄 [Watcher] Acción de transferencia solicitada a '{dest}'...")
+                        self.transfer_call_genesys(dest)
+                    except Exception as e:
+                        logger.error(f"Error ejecutando accion_transferir: {e}")
+
+                if accion_colgar.exists():
+                    try:
+                        accion_colgar.unlink(missing_ok=True)
+                        logger.info("📞 [Watcher] Acción de colgar solicitada...")
+                        self.click_end_call_button()
+                    except Exception as e:
+                        logger.error(f"Error ejecutando accion_colgar: {e}")
+
+                if accion_done.exists():
+                    try:
+                        accion_done.unlink(missing_ok=True)
+                        logger.info("🖱️ [Watcher] Acción de Done solicitada...")
+                        self.click_done_button()
+                    except Exception as e:
+                        logger.error(f"Error ejecutando accion_done: {e}")
+
+                # 2. Leer si el agente actualizó el último teléfono atendido
+                if ultimo_tel_file.exists():
+                    try:
+                        current_saved_phone = ultimo_tel_file.read_text(encoding="utf-8").strip()
+                        if current_saved_phone:
+                            last_processed_phone = current_saved_phone
+                    except Exception:
+                        pass
+
+                # 3. Verificar estado de llamada en Genesys
+                in_call = self.is_in_call()
+
+                if in_call:
+                    call_data = self.get_active_call_data()
+                    current_phone = call_data.get("phone_number", "").strip()
+
+                    # Comprobar si es un número telefónico diferente
+                    # Si coincide con el último transferido/atendido, no disparamos llamada.txt
+                    if current_phone and current_phone == last_processed_phone:
+                        # Es la llamada que está atendiendo el compañero tras transferir
+                        logger.debug(f"[Watcher] Llamada activa con mismo teléfono ({current_phone}) - atendida por compañero. Ignorando.")
+                    elif current_phone and current_phone != last_processed_phone:
+                        # Es una NUEVA llamada con número distinto
+                        if not llamada_file.exists():
+                            logger.info(f"🛎️ [Watcher] NUEVA llamada detectada ({current_phone}). Escribiendo llamada.txt...")
+                            call_payload = {
+                                "phone_number": current_phone,
+                                "lead_id": call_data.get("lead_id", current_phone),
+                                "CUENTA": call_data.get("CUENTA", ""),
+                                "timestamp": time.time()
+                            }
+                            llamada_file.write_text(json.dumps(call_payload, ensure_ascii=False), encoding="utf-8")
+                            colgado_file.unlink(missing_ok=True)
+                            last_processed_phone = current_phone
+                            ultimo_tel_file.write_text(current_phone, encoding="utf-8")
+                    elif not current_phone:
+                        # Si no hay teléfono extraído aún, pero es llamada activa y no había llamada
+                        if not llamada_file.exists() and not was_in_call:
+                            # Reintentar extraer teléfono con un breve respiro de 0.3s antes de emitir señal
+                            time.sleep(0.3)
+                            call_data = self.get_active_call_data()
+                            current_phone = call_data.get("phone_number", "").strip()
+                            if current_phone and current_phone != last_processed_phone:
+                                logger.info(f"🛎️ [Watcher] NUEVA llamada detectada en reintento ({current_phone}). Escribiendo llamada.txt...")
+                                call_payload = {
+                                    "phone_number": current_phone,
+                                    "lead_id": call_data.get("lead_id", current_phone),
+                                    "CUENTA": call_data.get("CUENTA", ""),
+                                    "timestamp": time.time()
+                                }
+                                llamada_file.write_text(json.dumps(call_payload, ensure_ascii=False), encoding="utf-8")
+                                colgado_file.unlink(missing_ok=True)
+                                last_processed_phone = current_phone
+                                ultimo_tel_file.write_text(current_phone, encoding="utf-8")
+                            elif not current_phone:
+                                logger.info("🛎️ [Watcher] Llamada detectada sin teléfono. Escribiendo llamada.txt...")
+                                call_payload = {
+                                    "phone_number": "",
+                                    "lead_id": "",
+                                    "CUENTA": "",
+                                    "timestamp": time.time()
+                                }
+                                llamada_file.write_text(json.dumps(call_payload, ensure_ascii=False), encoding="utf-8")
+                                colgado_file.unlink(missing_ok=True)
+
+                    was_in_call = True
+
+                else:
+                    # No hay llamada activa
+                    if was_in_call:
+                        # La llamada acaba de terminar o colgar
+                        logger.info("📞 [Watcher] Fin de llamada detectado en Genesys. Escribiendo colgado.txt...")
+                        colgado_file.write_text("CALL_HUNGUP", encoding="utf-8")
+                        llamada_file.unlink(missing_ok=True)
+                        was_in_call = False
+
+                # También revisar si el botón Done está visible (llamada finalizada)
+                if self.is_done_button_visible():
+                    if not colgado_file.exists():
+                        logger.info("📞 [Watcher] Botón Done visible. Escribiendo colgado.txt...")
+                        colgado_file.write_text("DONE_VISIBLE", encoding="utf-8")
+                        llamada_file.unlink(missing_ok=True)
+
+            except Exception as loop_err:
+                logger.debug(f"[Watcher Loop Error] {loop_err}")
+
+            time.sleep(0.3)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Genesys WDE RPA Client")
@@ -473,6 +625,8 @@ def main():
     parser.add_argument("--password", type=str, help="Contraseña")
     parser.add_argument("--place", type=str, help="Place / Extensión (opcional)")
     parser.add_argument("--debug", action="store_true", help="Analizar y mostrar los controles de la ventana activa")
+    parser.add_argument("--watch", action="store_true", help="Inicia el vigilante continuo de llamadas por archivos de señal TXT")
+    parser.add_argument("--signals-dir", type=str, default="", help="Ruta opcional al directorio de señales")
     
     # Argumentos para subproceso
     parser.add_argument("--is-in-call", action="store_true", help="Verifica si hay llamada activa")
@@ -484,6 +638,13 @@ def main():
     parser.add_argument("--debug-window", action="store_true", help="Analizar y mostrar los controles de la ventana activa directamente por título")
     
     args = parser.parse_args()
+
+    rpa = GenesysRPA(exe_path=args.exe)
+
+    # Modo Watcher continuo
+    if args.watch:
+        rpa.start_watcher(signals_dir=args.signals_dir or None)
+        return
 
     # Procesar comando debug-window directamente
     if args.debug_window:

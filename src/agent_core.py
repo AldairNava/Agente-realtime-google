@@ -156,7 +156,8 @@ class VoiceAgent:
                     colgar_llamada_genesis,
                     self.guardar_registro_llamada_retencion,
                     self.colgar_agente_genesis,
-                    self.transferir_llamada_retencion
+                    self.transferir_llamada_retencion,
+                    self.transferir_llamada_cancelacion
                 ])
                 logger.info("🚨 [Retención] MODO POLLUTION (Nivel 0) activo. Se registraron tools de enrutamiento y búsqueda asíncrona.")
             else:
@@ -285,6 +286,8 @@ class VoiceAgent:
         self.last_client_lead_id = ''
         self.user_is_speaking = False
         self.last_speech_time = 0.0
+        self.retencion_senales_dir = os.path.join(os.path.dirname(__file__), '..', 'tools', 'retencion', 'senales')
+        self.ultimo_telefono_procesado = ""
 
     def _get_current_call_state(self) -> dict:
         """
@@ -566,12 +569,14 @@ class VoiceAgent:
         except Exception as e:
             logger.error(f"❌ [Retencion] Error guardando registro JSON: {e}")
 
-        # Ejecutar clic en botón Done de Genesys
-        if hasattr(self, 'phantom') and self.phantom:
-            logger.info("🖱️ [Retencion] Clickeando Done en Genesys...")
-            self.loop.call_soon_threadsafe(
-                lambda: self.loop.create_task(self._run_genesys_rpa(["--click-done"]))
-            )
+        # Ejecutar clic en botón Done de Genesys mediante señal para el Watcher
+        try:
+            os.makedirs(self.retencion_senales_dir, exist_ok=True)
+            with open(os.path.join(self.retencion_senales_dir, "accion_done.txt"), "w", encoding="utf-8") as df:
+                df.write("DONE")
+            logger.info("🖱️ [Retencion] Señal accion_done.txt enviada al Watcher.")
+        except Exception as de:
+            logger.error(f"Error enviando accion_done.txt: {de}")
 
         self.session_active = False
         return {"status": "ok", "message": "Registro guardado y pantalla de Genesys cerrada."}
@@ -634,12 +639,14 @@ class VoiceAgent:
         except Exception as e:
             logger.error(f"❌ [Retencion] Error guardando registro JSON: {e}")
 
-        # Ejecutar clic en botón colgar (End The Call) de Genesys WDE
-        if hasattr(self, 'phantom') and self.phantom:
-            logger.info("📞 [Retencion] Clickeando End Call en Genesys...")
-            self.loop.call_soon_threadsafe(
-                lambda: self.loop.create_task(self._run_genesys_rpa(["--click-end"]))
-            )
+        # Ejecutar clic en botón colgar (End The Call) de Genesys WDE mediante señal para el Watcher
+        try:
+            os.makedirs(self.retencion_senales_dir, exist_ok=True)
+            with open(os.path.join(self.retencion_senales_dir, "accion_colgar.txt"), "w", encoding="utf-8") as cf:
+                cf.write("COLGAR")
+            logger.info("📞 [Retencion] Señal accion_colgar.txt enviada al Watcher.")
+        except Exception as ce:
+            logger.error(f"Error enviando accion_colgar.txt: {ce}")
 
         return {"status": "ok", "message": "Llamada finalizada activamente en Genesys y registro guardado."}
 
@@ -698,14 +705,111 @@ class VoiceAgent:
         except Exception as e:
             logger.error(f"❌ Error al guardar registro antes de transferir: {e}")
 
-        if hasattr(self, 'phantom') and self.phantom:
-            logger.info(f"🔄 [Retencion] Solicitando transferencia de llamada a: '{area}'...")
-            self.loop.call_soon_threadsafe(
-                lambda: self.loop.create_task(self._run_genesys_rpa(["--transfer", area]))
-            )
-            self.session_active = False
-            return {"status": "ok", "message": f"Transferencia al área '{area}' iniciada."}
-        return {"status": "error", "message": "No se pudo realizar la transferencia en Genesys."}
+        # Guardar último teléfono atendido en senales para evitar re-atender llamada en curso
+        if self.client_phone:
+            try:
+                os.makedirs(self.retencion_senales_dir, exist_ok=True)
+                ultimo_path = os.path.join(self.retencion_senales_dir, "ultimo_telefono.txt")
+                with open(ultimo_path, "w", encoding="utf-8") as uf:
+                    uf.write(str(self.client_phone))
+                self.ultimo_telefono_procesado = str(self.client_phone)
+                logger.info(f"📱 [Retencion] Guardado último teléfono transferido: {self.client_phone}")
+            except Exception as pe:
+                logger.error(f"Error guardando ultimo_telefono.txt: {pe}")
+
+        # Solicitar transferencia a través de archivo de señal para el Watcher
+        try:
+            os.makedirs(self.retencion_senales_dir, exist_ok=True)
+            accion_path = os.path.join(self.retencion_senales_dir, "accion_transferir.txt")
+            with open(accion_path, "w", encoding="utf-8") as af:
+                af.write(str(area))
+        except Exception as ae:
+            logger.error(f"Error escribiendo accion_transferir.txt: {ae}")
+
+        logger.info(f"🔄 [Retencion] Solicitando transferencia de llamada a: '{area}'...")
+        self.transfer_executed = True
+        if self.delayed_hangup_task:
+            self.delayed_hangup_task.cancel()
+        self.loop.call_soon_threadsafe(
+            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(delay=3.0)))
+        )
+        return {"status": "ok", "message": f"Transferencia al área '{area}' iniciada. Desactivando agente para la siguiente llamada."}
+
+    def transferir_llamada_cancelacion(self, motivo: str = "RETENCIONES") -> dict:
+        """
+        Transfiere la llamada al área de retención especializada para cancelaciones.
+        Llama obligatoriamente a esta herramienta cuando el cliente solicite una cancelación total o parcial y tú digas la frase de transferencia.
+        Esto guarda el registro de la llamada, prepara la sesión y transfiere con el especialista.
+
+        Args:
+            motivo: Motivo de la llamada o cancelación (por defecto 'RETENCIONES').
+        """
+        # Guardar en base de datos 'pollution' en MySQL
+        try:
+            from tools.fallback_db import guardar_registro_pollution
+            db_cuenta = self.client_cuenta if self.client_cuenta else "Desconocida"
+            guardar_registro_pollution(cuenta=db_cuenta, motivo=motivo)
+        except Exception as db_err:
+            logger.error(f"❌ Error al guardar en BD pollution antes de transferir cancelación: {db_err}")
+
+        # Guardar registro en JSON antes de transferir
+        try:
+            today_str = datetime.now().strftime("%Y%m%d")
+            log_dir = os.path.join(os.path.dirname(__file__), '..', 'assets', self.campania_name, 'registro_de_llamadas')
+            os.makedirs(log_dir, exist_ok=True)
+            json_path = os.path.join(log_dir, f"{self.campania_name}_{today_str}.json")
+
+            calls_list = []
+            if os.path.exists(json_path):
+                try:
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        calls_list = json.load(f)
+                        if not isinstance(calls_list, list):
+                            calls_list = [calls_list]
+                except Exception as parse_err:
+                    logger.warning(f"Error parseando JSON existente {json_path}: {parse_err}")
+
+            call_data = {
+                "campania": self.campania_name,
+                "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "lead_id": self.client_lead_id or "0",
+                "nombre": self.client_name or "Desconocido",
+                "cuenta": self.client_cuenta or "Desconocido",
+                "telefono": self.client_phone or "Desconocido",
+                "estatus": "TRANSFERIDO_CANCELACION",
+                "motivo": motivo,
+                "resumen": "Transferido al área especializada de cancelación",
+                "audio": os.path.basename(self.recorder.call_path) if self.recorder else None
+            }
+            calls_list.append(call_data)
+
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(calls_list, f, ensure_ascii=False, indent=4)
+            self.registro_guardado = True
+            logger.info(f"💾 [Retencion] Registro de llamada guardado para cuenta {self.client_cuenta} antes de transferir cancelación.")
+        except Exception as e:
+            logger.error(f"❌ Error al guardar registro antes de transferir cancelación: {e}")
+
+        # Guardar último teléfono atendido en senales
+        if self.client_phone:
+            try:
+                os.makedirs(self.retencion_senales_dir, exist_ok=True)
+                ultimo_path = os.path.join(self.retencion_senales_dir, "ultimo_telefono.txt")
+                with open(ultimo_path, "w", encoding="utf-8") as uf:
+                    uf.write(str(self.client_phone))
+                self.ultimo_telefono_procesado = str(self.client_phone)
+                logger.info(f"📱 [Retencion] Guardado último teléfono transferido: {self.client_phone}")
+            except Exception as pe:
+                logger.error(f"Error guardando ultimo_telefono.txt: {pe}")
+
+        logger.info("🔄 [Retencion] Transferencia por cancelación registrada. Esperando a que el agente termine de hablar...")
+        self.transfer_executed = True
+        if self.delayed_hangup_task:
+            self.delayed_hangup_task.cancel()
+        self.loop.call_soon_threadsafe(
+            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(delay=3.0)))
+        )
+        return {"status": "ok", "message": "Transferencia de cancelación registrada. Desactivando agente para la siguiente llamada."}
 
     async def _bg_fetch_client_data(self):
         from tools.retencion.retencion_tools import SIGNALS_DIR, clasificar_perfil_cuenta
@@ -878,6 +982,15 @@ class VoiceAgent:
                 await asyncio.to_thread(api_cfg.external_hangup)
         else:
             logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
+        self.session_active = False
+
+    async def _delayed_session_reset(self, delay: float = 3.0):
+        """Espera a que el agente termine de decir su frase completa de transferencia antes de cerrar la sesión."""
+        logger.info(f"⏱️ [Retencion Transfer] Esperando {delay}s y fin de reproducción de audio antes de reiniciar sesión...")
+        await asyncio.sleep(delay)
+        while getattr(self, '_ai_playback_active', False) or not self.audio_out_queue.empty():
+            await asyncio.sleep(0.2)
+        logger.info("🔄 [Retencion Transfer] Frase dicha completamente. Desactivando sesión para esperar la siguiente llamada...")
         self.session_active = False
 
     async def _hangup_watchdog(self):
@@ -1129,6 +1242,13 @@ class VoiceAgent:
                         logger.info(f"🤖 [IA]: {resp_text}")
                         if hasattr(self, 'call_transcript'):
                             self.call_transcript.append(f"Agente: {resp_text}")
+
+                        # Detección de frase de transferencia para cancelación en retencion
+                        if self.campania_name == 'retencion' and not getattr(self, 'transfer_executed', False):
+                            t_lower = resp_text.lower()
+                            if ("compañero" in t_lower or "especialista" in t_lower or "cancelaci" in t_lower) and "transferir" in t_lower:
+                                logger.info("🎯 [Retencion] Frase de transferencia detectada en voz del agente. Activando cierre y reseteo de sesión.")
+                                self.transferir_llamada_cancelacion(motivo="RETENCIONES")
                     if response.tool_call:
                         for fc in response.tool_call.function_calls:
                             asyncio.create_task(self._process_tool_call(session, fc))
@@ -1967,36 +2087,48 @@ class VoiceAgent:
                                             logger.warning(f"⚠️ [Monitor] Falló conexión a base de datos de Asterisk: {dbe}. Usando fallback de navegador...")
                                             db_failed = True
                                             
-                                    # 2. Si no hay base de datos o falló, usar navegador
-                                    if db_failed or self.campania_name in ('retencion', 'retencion_2'):
-                                        if hasattr(self, 'phantom') and self.phantom:
-                                            # Para retencion, si ya estamos en llamada, el colgado del cliente se detecta buscando el botón Done Ctrl+E.
-                                            if self.campania_name == 'retencion':
-                                                in_call_str = await self._run_genesys_rpa(["--is-in-call"])
-                                                in_call = (in_call_str == "TRUE")
-                                                if not was_in_call:
-                                                    logger.info(f"🔎 [Monitor Retencion] is_in_call retornado: {in_call}")
+                                    # 2. Si no hay base de datos o falló, usar señales para retención o navegador para otras campañas
+                                    if self.campania_name == 'retencion':
+                                        llamada_txt_path = os.path.join(self.retencion_senales_dir, "llamada.txt")
+                                        colgado_txt_path = os.path.join(self.retencion_senales_dir, "colgado.txt")
+
+                                        if not was_in_call:
+                                            in_call = os.path.exists(llamada_txt_path)
+                                            if in_call:
+                                                call_data = {}
+                                                try:
+                                                    with open(llamada_txt_path, "r", encoding="utf-8") as lf:
+                                                        call_data = json.load(lf)
+                                                except Exception as je:
+                                                    logger.error(f"Error parseando llamada.txt: {je}")
+                                                
+                                                # Consumir la señal para evitar re-disparos
+                                                try:
+                                                    os.remove(llamada_txt_path)
+                                                except Exception:
+                                                    pass
+
+                                                phone_number = str(call_data.get("phone_number", ""))
+                                                lead_id_str = str(call_data.get("lead_id", phone_number))
+                                                cuenta = str(call_data.get("CUENTA", ""))
+                                                status = 'INCALL'
+                                                logger.info(f"🛎️ [Monitor Retencion] Señal llamada.txt detectada! Tel: {phone_number}, Lead: {lead_id_str}")
                                             else:
-                                                in_call = await asyncio.to_thread(self.phantom.is_in_call)
-                                            
+                                                status = 'PAUSED'
+                                        else:
+                                            # Ya estábamos en llamada: verificar si hay señal de colgado
+                                            is_hungup = os.path.exists(colgado_txt_path)
+                                            in_call = not is_hungup
+                                            status = 'INCALL' if in_call else 'PAUSED'
+                                    elif db_failed or self.campania_name == 'retencion_2':
+                                        if hasattr(self, 'phantom') and self.phantom:
+                                            in_call = await asyncio.to_thread(self.phantom.is_in_call)
                                             status = 'INCALL' if in_call else 'PAUSED'
                                             phone_number = ""
                                             cuenta = ""
                                             lead_id_str = ""
-                                            
                                             if in_call:
-                                                if self.campania_name == 'retencion':
-                                                    call_data_str = await self._run_genesys_rpa(["--get-call-data"])
-                                                    call_data = {}
-                                                    try:
-                                                        call_data = json.loads(call_data_str)
-                                                    except Exception as je:
-                                                        logger.error(f"Error parseando call_data JSON en monitor: {je}")
-                                                    lead_id_str = call_data.get("lead_id", "")
-                                                    phone_number = call_data.get("phone_number", "")
-                                                    cuenta = call_data.get("CUENTA", "")
-                                                else:
-                                                    lead_id_str = await asyncio.to_thread(self.phantom.get_lead_id_fast)
+                                                lead_id_str = await asyncio.to_thread(self.phantom.get_lead_id_fast)
                                         else:
                                             status = 'PAUSED'
 
@@ -2005,7 +2137,9 @@ class VoiceAgent:
                                         if not was_in_call:
                                             # Comprobar si realmente cambió el lead_id con respecto al último procesado (evitar doble saludo en reconexión)
                                             has_change = False
-                                            if lead_id_str:
+                                            if self.campania_name == 'retencion':
+                                                has_change = True
+                                            elif lead_id_str:
                                                 if lead_id_str != self.last_client_lead_id:
                                                     has_change = True
                                             else:
@@ -2046,18 +2180,17 @@ class VoiceAgent:
                                                 
                                             # --- AHORA EXTRAER LA INFORMACIÓN DE LA LLAMADA EN PARALELO ---
                                             if self.campania_name == 'retencion':
-                                                call_data_str = await self._run_genesys_rpa(["--get-call-data"])
-                                                call_data = {}
-                                                try:
-                                                    call_data = json.loads(call_data_str)
-                                                except Exception as je:
-                                                    logger.error(f"Error parseando call_data JSON: {je}")
+                                                # Datos ya extraídos instantáneamente de la señal llamada.txt sin subprocesos
+                                                call_data = {
+                                                    "phone_number": phone_number,
+                                                    "lead_id": lead_id_str,
+                                                    "CUENTA": cuenta
+                                                }
                                             else:
                                                 call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
-                                            
-                                            phone_number = call_data.get("phone_number", "")
-                                            cuenta = call_data.get("CUENTA", "")
-                                            lead_id_str = call_data.get("lead_id", "") or lead_id_str
+                                                phone_number = call_data.get("phone_number", "")
+                                                cuenta = call_data.get("CUENTA", "")
+                                                lead_id_str = call_data.get("lead_id", "") or lead_id_str
                                             
                                             self.client_phone = phone_number
                                             self.client_cuenta = cuenta
@@ -2156,19 +2289,20 @@ class VoiceAgent:
                                         self.vicidial_incall = False
                                         if was_in_call:
                                             if self.campania_name == 'retencion':
-                                                if getattr(self, 'registro_guardado', False):
-                                                    logger.info("📞 [Monitor] La llamada terminó y el registro ya fue guardado. Dando clic a Done...")
-                                                    if hasattr(self, 'phantom') and self.phantom:
-                                                        await self._run_genesys_rpa(["--click-done"])
-                                                    self.session_active = False
-                                                    break
-                                                else:
-                                                    if not getattr(self, 'registro_solicitado', False):
-                                                        logger.warning("📞 [Monitor] La llamada terminó (botón Done visible) pero falta registrar. Solicitando al agente...")
-                                                        self.registro_solicitado = True
-                                                        await session.send_realtime_input(
-                                                            text="[SISTEMA: El cliente ha finalizado la llamada (el botón Done Ctrl+E está visible). Por favor, llama inmediatamente a la herramienta 'guardar_registro_llamada_retencion' con los datos del cliente (cuenta, teléfono, nombre) y el resultado correspondiente ('RETENIDO', 'NO RETENIDO', 'TRANSFERIDO', 'BUZON_DE_VOZ', 'DESCONEXION') para guardar la bitácora y cerrar la pantalla de Genesys.]"
-                                                        )
+                                                colgado_txt_path = os.path.join(self.retencion_senales_dir, "colgado.txt")
+                                                if os.path.exists(colgado_txt_path):
+                                                    try: os.remove(colgado_txt_path)
+                                                    except Exception: pass
+                                                
+                                                logger.info("📞 [Monitor Retencion] La llamada terminó. Cerrando sesión limpia para esperar la siguiente llamada...")
+                                                # Enviar señal de Done al watcher si la ventana sigue con Done
+                                                try:
+                                                    with open(os.path.join(self.retencion_senales_dir, "accion_done.txt"), "w", encoding="utf-8") as df:
+                                                        df.write("DONE")
+                                                except Exception: pass
+                                                
+                                                self.session_active = False
+                                                break
                                             else:
                                                 logger.warning("📞 [Monitor] La llamada terminó. Finalizando llamada...")
                                                 self.session_active = False

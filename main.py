@@ -483,6 +483,27 @@ async def main():
         import subprocess
         logger.info(f"🚀 [{args.mode.capitalize()}] Iniciando procesos RPA de Retención...")
         try:
+            # Limpiar señales previas de retención (conservando ultimo_telefono.txt)
+            senales_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools', 'retencion', 'senales')
+            os.makedirs(senales_dir, exist_ok=True)
+            for f in os.listdir(senales_dir):
+                if f.endswith('.txt') and not f.startswith('ultimo_telefono'):
+                    try:
+                        os.remove(os.path.join(senales_dir, f))
+                    except Exception:
+                        pass
+
+            # Iniciar el Vigilante Genesys WDE por Señales TXT
+            log_watcher = open("genesys_watcher_console.log", "w", encoding="utf-8")
+            rpa_watcher = subprocess.Popen(
+                [sys.executable, "tools/retencion/genesys_rpa.py", "--watch"],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                stdout=log_watcher,
+                stderr=subprocess.STDOUT
+            )
+            rpa_processes.append(rpa_watcher)
+            logger.info("✅ [Retencion] Vigilante Genesys RPA iniciado (Log: genesys_watcher_console.log).")
+
             if str(args.level) != "0":
                 log_ret = open("retencion_rpa_console.log", "w", encoding="utf-8")
                 rpa_ret = subprocess.Popen(
