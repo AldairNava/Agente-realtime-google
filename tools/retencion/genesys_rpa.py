@@ -492,6 +492,11 @@ class GenesysRPA:
         accion_colgar = signals_dir / "accion_colgar.txt"
         accion_done = signals_dir / "accion_done.txt"
 
+        # Limpieza de contención de señales al iniciar el vigilante
+        for f in (llamada_file, colgado_file, accion_transferir, accion_colgar, accion_done):
+            f.unlink(missing_ok=True)
+        logger.info("🧹 [Watcher] Señales de llamada previas limpiadas al iniciar el vigilante.")
+
         last_processed_phone = ""
         if ultimo_tel_file.exists():
             try:

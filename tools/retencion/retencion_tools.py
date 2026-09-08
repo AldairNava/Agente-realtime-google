@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 
 # Ruta del directorio de señales (relativa a la raíz del proyecto)
 _TOOLS_DIR   = Path(__file__).parent
-_PROJECT_DIR = _TOOLS_DIR.parent
+_PROJECT_DIR = _TOOLS_DIR.parent.parent
 SIGNALS_DIR  = _PROJECT_DIR / "assets" / "retencion" / "rpa_signals"
+SENALES_GENESYS_DIR = _TOOLS_DIR / "senales"
 
 # Motivos válidos aceptados por el portal (case-insensitive)
 MOTIVOS_VALIDOS = [
@@ -181,21 +182,40 @@ def guardar_motivo_cancelacion(motivo: str) -> dict:
     return _write_signal("motivo.txt", motivo_mapeado)
 
 
-def limpiar_senales() -> dict:
+def limpiar_senales(incluir_genesys: bool = True) -> dict:
     """
-    Elimina todas las señales pendientes del directorio rpa_signals.
-    Llamar al terminar cada llamada para dejar el RPA listo para la siguiente.
+    Elimina todas las señales pendientes de las carpetas de señales de retención:
+    - assets/retencion/rpa_signals/ (archivos de Siebel / RPA)
+    - tools/retencion/senales/ (archivos de Genesys WDE)
     
     Returns:
         dict con status "ok" y cantidad de archivos eliminados.
     """
     try:
-        SIGNALS_DIR.mkdir(exist_ok=True)
+        SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
+        SENALES_GENESYS_DIR.mkdir(parents=True, exist_ok=True)
         eliminados = []
-        for f in SIGNALS_DIR.glob("*.txt"):
-            f.unlink()
-            eliminados.append(f.name)
-        logger.info(f"🧹 [RetencionTools] Señales limpiadas: {eliminados}")
+        
+        # 1. Limpiar rpa_signals (todos los archivos, incluyendo .txt y .json)
+        for f in SIGNALS_DIR.iterdir():
+            if f.is_file():
+                try:
+                    f.unlink()
+                    eliminados.append(f"rpa_signals/{f.name}")
+                except Exception as fe:
+                    logger.warning(f"No se pudo eliminar {f.name}: {fe}")
+
+        # 2. Limpiar señales de Genesys WDE
+        if incluir_genesys and SENALES_GENESYS_DIR.exists():
+            for f in SENALES_GENESYS_DIR.iterdir():
+                if f.is_file():
+                    try:
+                        f.unlink()
+                        eliminados.append(f"senales/{f.name}")
+                    except Exception as fe:
+                        logger.warning(f"No se pudo eliminar {f.name}: {fe}")
+
+        logger.info(f"🧹 [RetencionTools] Carpetas de señales limpiadas: {eliminados}")
         return {"status": "ok", "eliminados": eliminados}
     except Exception as e:
         logger.error(f"❌ [RetencionTools] Error limpiando señales: {e}")

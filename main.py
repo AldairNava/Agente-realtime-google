@@ -460,6 +460,12 @@ async def main():
                 os.remove(override_path)
             except Exception:
                 pass
+        if args.campania == "retencion":
+            try:
+                from tools.retencion.retencion_tools import limpiar_senales
+                limpiar_senales(incluir_genesys=True)
+            except Exception:
+                pass
         if rpa_processes:
             logger.info("🛑 [Local] Cerrando procesos RPA...")
             for proc in rpa_processes:
@@ -483,15 +489,13 @@ async def main():
         import subprocess
         logger.info(f"🚀 [{args.mode.capitalize()}] Iniciando procesos RPA de Retención...")
         try:
-            # Limpiar señales previas de retención (conservando ultimo_telefono.txt)
-            senales_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'tools', 'retencion', 'senales')
-            os.makedirs(senales_dir, exist_ok=True)
-            for f in os.listdir(senales_dir):
-                if f.endswith('.txt') and not f.startswith('ultimo_telefono'):
-                    try:
-                        os.remove(os.path.join(senales_dir, f))
-                    except Exception:
-                        pass
+            # Limpiar carpetas de señales de retención por contención al iniciar por primera vez
+            try:
+                from tools.retencion.retencion_tools import limpiar_senales
+                limpiar_senales(incluir_genesys=True)
+                logger.info("🧹 [Retencion] Carpetas de señales limpiadas por contención al iniciar.")
+            except Exception as le:
+                logger.warning(f"Error limpiando señales: {le}")
 
             # Iniciar el Vigilante Genesys WDE por Señales TXT
             log_watcher = open("genesys_watcher_console.log", "w", encoding="utf-8")

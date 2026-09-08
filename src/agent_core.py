@@ -133,6 +133,8 @@ class VoiceAgent:
             logger.info("💳 [AMEX] Tools de formulario AMEX y catálogo RAG activadas.")
         elif self.campania_name == 'retencion':
             from tools.retencion.retencion_tools import generar_caso_negocio_siebel, limpiar_senales
+            # Limpieza de contención de todas las carpetas de señales al iniciar el agente por primera vez
+            limpiar_senales(incluir_genesys=True)
             nivel_retencion = self.level
             if str(nivel_retencion) == '0':
                 from tools.retencion.retencion_tools import (
