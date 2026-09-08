@@ -2102,48 +2102,17 @@ class VoiceAgent:
                                                 except Exception as je:
                                                     logger.error(f"Error parseando llamada.txt: {je}")
                                                 
-                                                # Consumir la señal para evitar re-disparos
-                                                try:
-                                                    os.remove(llamada_txt_path)
-                                                except Exception:
-                                                    pass
 
                                                 phone_number = str(call_data.get("phone_number", ""))
                                                 lead_id_str = str(call_data.get("lead_id", phone_number))
                                                 cuenta = str(call_data.get("CUENTA", ""))
                                                 status = 'INCALL'
                                                 logger.info(f"🛎️ [Monitor Retencion] Señal llamada.txt detectada! Tel: {phone_number}, Lead: {lead_id_str}")
-                                            elif hasattr(self, 'phantom') and self.phantom:
-                                                # Fallback directo: si Genesys ya tiene la llamada conectada en pantalla
-                                                in_call_direct = await asyncio.to_thread(self.phantom.is_in_call)
-                                                if in_call_direct:
-                                                    call_data = await asyncio.to_thread(self.phantom.get_active_call_data)
-                                                    ph = str(call_data.get("phone_number", "")).strip()
-                                                    # Filtrar solo si es el teléfono transferido a compañero
-                                                    if not (self.ultimo_telefono_procesado and ph and ph == self.ultimo_telefono_procesado):
-                                                        phone_number = ph
-                                                        lead_id_str = str(call_data.get("lead_id", ph))
-                                                        cuenta = str(call_data.get("CUENTA", ""))
-                                                        in_call = True
-                                                        status = 'INCALL'
-                                                        logger.info(f"🛎️ [Monitor Retencion] Llamada activa detectada directamente en Genesys! Tel: {phone_number}, Lead: {lead_id_str}")
-                                                    else:
-                                                        status = 'PAUSED'
-                                                else:
-                                                    status = 'PAUSED'
                                             else:
                                                 status = 'PAUSED'
                                         else:
-                                            # Ya estábamos en llamada: verificar si hay señal de colgado o si la llamada finalizó en Genesys
+                                            # Ya estábamos en llamada: verificar si hay señal de colgado
                                             is_hungup = os.path.exists(colgado_txt_path)
-                                            if not is_hungup and hasattr(self, 'phantom') and self.phantom:
-                                                is_done = await asyncio.to_thread(self.phantom.is_done_button_visible)
-                                                if is_done:
-                                                    is_hungup = True
-                                                else:
-                                                    in_call_chk = await asyncio.to_thread(self.phantom.is_in_call)
-                                                    if not in_call_chk:
-                                                        is_hungup = True
                                             in_call = not is_hungup
                                             status = 'INCALL' if in_call else 'PAUSED'
                                     elif db_failed or self.campania_name == 'retencion_2':

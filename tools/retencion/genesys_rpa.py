@@ -200,22 +200,22 @@ class GenesysRPA:
 
     def is_in_call(self) -> bool:
         """Verifica si hay una llamada conectada leyendo la interfaz del Workspace."""
-        logger.info(f"[DEBUG] [is_in_call] 1. Entrando a la función is_in_call. Archivo: {__file__}")
+        logger.debug(f"[DEBUG] [is_in_call] 1. Entrando a la función is_in_call. Archivo: {__file__}")
         try:
             import pythoncom
-            logger.info("[DEBUG] [is_in_call] 2. Ejecutando CoInitialize...")
+            logger.debug("[DEBUG] [is_in_call] 2. Ejecutando CoInitialize...")
             pythoncom.CoInitialize()
             
-            logger.info("[DEBUG] [is_in_call] 3. Intentando conectar directamente por título '.*Workspace.*'...")
+            logger.debug("[DEBUG] [is_in_call] 3. Intentando conectar directamente por título '.*Workspace.*'...")
             app = Application(backend="uia").connect(title_re=".*Workspace.*", timeout=2)
-            logger.info("[DEBUG] [is_in_call] 4. Conectado exitosamente. Obteniendo objeto ventana...")
+            logger.debug("[DEBUG] [is_in_call] 4. Conectado exitosamente. Obteniendo objeto ventana...")
             main_window = app.window(title_re=".*Workspace.*")
             
             if not main_window.exists(timeout=0.5):
-                logger.info("[DEBUG] [is_in_call] 5a. La ventana con título 'Workspace' no existe en el sistema.")
+                logger.debug("[DEBUG] [is_in_call] 5a. La ventana con título 'Workspace' no existe en el sistema.")
                 return False
                 
-            logger.info("[DEBUG] [is_in_call] 5b. Ventana encontrada. Buscando controles...")
+            logger.debug("[DEBUG] [is_in_call] 5b. Ventana encontrada. Buscando controles...")
                 
             # 1. Búsqueda por botones de llamada activa (End the call, Instant call Transfer, Hold, etc.)
             try:
@@ -230,7 +230,7 @@ class GenesysRPA:
                         pass
                     
                     if visible and enabled:
-                        logger.info("[DEBUG] Botón de interacción activa encontrado (visible y habilitado).")
+                        logger.debug("[DEBUG] Botón de interacción activa encontrado (visible y habilitado).")
                         return True
             except Exception as ex:
                 logger.debug(f"[DEBUG] Error buscando botón de interacción activa: {ex}")
@@ -240,13 +240,13 @@ class GenesysRPA:
                 for ctype in ("Text", "Image"):
                     indicator = main_window.child_window(title_re=r"(?i).*(connected|outbound call|inbound call).*", control_type=ctype)
                     if indicator.exists(timeout=0.2):
-                        logger.info(f"[DEBUG] Indicador de llamada activa ({ctype}) encontrado.")
+                        logger.debug(f"[DEBUG] Indicador de llamada activa ({ctype}) encontrado.")
                         return True
             except Exception:
                 pass
                 
         except Exception as e:
-            logger.info(f"[DEBUG] Excepción general en is_in_call: {e}")
+            logger.debug(f"[DEBUG] Excepción general en is_in_call: {e}")
             
         return False
 
@@ -589,10 +589,11 @@ class GenesysRPA:
                             pass
 
                     if current_phone and transferred_phone and current_phone == transferred_phone:
+                        llamada_file.unlink(missing_ok=True)
                         logger.debug(f"[Watcher] Llamada activa con teléfono transferido a compañero ({current_phone}). Ignorando.")
                     else:
-                        # Si no hay llamada.txt y no se había marcado en llamada en este ciclo, crear la señal
-                        if not llamada_file.exists() and not was_in_call:
+                        # Si no hay llamada.txt, crear la señal para el agente
+                        if not llamada_file.exists():
                             logger.info(f"🛎️ [Watcher] Llamada activa detectada ({current_phone}). Escribiendo llamada.txt...")
                             call_payload = {
                                 "phone_number": current_phone,
@@ -621,6 +622,7 @@ class GenesysRPA:
                         logger.info("📞 [Watcher] Botón Done visible. Escribiendo colgado.txt...")
                         colgado_file.write_text("DONE_VISIBLE", encoding="utf-8")
                         llamada_file.unlink(missing_ok=True)
+                        ultimo_tel_file.unlink(missing_ok=True)
 
             except Exception as loop_err:
                 logger.debug(f"[Watcher Loop Error] {loop_err}")
