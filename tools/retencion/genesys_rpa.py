@@ -199,49 +199,63 @@ class GenesysRPA:
             return False
 
     def is_in_call(self) -> bool:
-        """Verifica si hay una llamada conectada leyendo la interfaz del Workspace."""
-        logger.debug(f"[DEBUG] [is_in_call] 1. Entrando a la función is_in_call. Archivo: {__file__}")
+        """
+        Verifica si hay una llamada CONECTADA leyendo la interfaz del Workspace.
+        NOTA: Debe ignorar estados de solo 'Marcando' (Dialing/Ringing) o encabezados como 'Outbound call'.
+        Solo retorna True si la llamada ya fue contestada/establecida.
+        """
         try:
             import pythoncom
-            logger.debug("[DEBUG] [is_in_call] 2. Ejecutando CoInitialize...")
             pythoncom.CoInitialize()
             
-            logger.debug("[DEBUG] [is_in_call] 3. Intentando conectar directamente por título '.*Workspace.*'...")
-            app = Application(backend="uia").connect(title_re=".*Workspace.*", timeout=2)
-            logger.debug("[DEBUG] [is_in_call] 4. Conectado exitosamente. Obteniendo objeto ventana...")
+            app = Application(backend="uia").connect(title_re=".*Workspace.*", timeout=1.5)
             main_window = app.window(title_re=".*Workspace.*")
             
-            if not main_window.exists(timeout=0.5):
-                logger.debug("[DEBUG] [is_in_call] 5a. La ventana con título 'Workspace' no existe en el sistema.")
+            if not main_window.exists(timeout=0.4):
                 return False
-                
-            logger.debug("[DEBUG] [is_in_call] 5b. Ventana encontrada. Buscando controles...")
-                
-            # 1. Búsqueda por botones de llamada activa (End the call, Instant call Transfer, Hold, etc.)
-            try:
-                btn = main_window.child_window(title_re=r"(?i).*(instant.*transfer|end.*call|hold.*call).*", control_type="Button")
-                if btn.exists(timeout=0.3):
-                    visible = False
-                    enabled = False
-                    try:
-                        visible = btn.is_visible()
-                        enabled = btn.is_enabled()
-                    except Exception:
-                        pass
-                    
-                    if visible and enabled:
-                        logger.debug("[DEBUG] Botón de interacción activa encontrado (visible y habilitado).")
-                        return True
-            except Exception as ex:
-                logger.debug(f"[DEBUG] Error buscando botón de interacción activa: {ex}")
 
-            # 2. Búsqueda por indicadores de texto o imagen de llamada conectada (Connected, Outbound call, Inbound call)
+            # 1. Botones que SOLO se habilitan cuando la llamada está conectada
+            # Durante marcación 'Instant call Transfer' y 'Hold' están deshabilitados.
             try:
-                for ctype in ("Text", "Image"):
-                    indicator = main_window.child_window(title_re=r"(?i).*(connected|outbound call|inbound call).*", control_type=ctype)
-                    if indicator.exists(timeout=0.2):
-                        logger.debug(f"[DEBUG] Indicador de llamada activa ({ctype}) encontrado.")
-                        return True
+                for action_re in (r"(?i).*(instant.*transfer).*", r"(?i).*(hold.*call).*"):
+                    btn = main_window.child_window(title_re=action_re, control_type="Button")
+                    if btn.exists(timeout=0.15):
+                        try:
+                            if btn.is_visible() and btn.is_enabled():
+                                logger.debug(f"[is_in_call] Botón activo habilitado ({action_re}) encontrado.")
+                                return True
+                        except Exception:
+                            pass
+            except Exception as ex:
+                logger.debug(f"[is_in_call] Error buscando botones de transferencia/retención: {ex}")
+
+            # 2. Indicador de texto explícito de llamada conectada ("Connected", "Establecida", "Conectada")
+            # Esto ignora 'Dialing', 'Calling', 'Ringing' y los headers 'Outbound call'
+            try:
+                for ctype in ("Text", "TextBlock"):
+                    indicator = main_window.child_window(title_re=r"(?i)^\s*(connected|establecida|conectad[oa])\s*$", control_type=ctype)
+                    if indicator.exists(timeout=0.15):
+                        try:
+                            if indicator.is_visible():
+                                logger.debug(f"[is_in_call] Indicador de texto '{indicator.window_text()}' visible.")
+                                return True
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            # 3. Cronómetro de duración de llamada activa en formato HH:MM:SS
+            try:
+                for ctype in ("Text", "TextBlock"):
+                    timer = main_window.child_window(title_re=r"^\d{2}:\d{2}:\d{2}$", control_type=ctype)
+                    if timer.exists(timeout=0.15):
+                        try:
+                            val = timer.window_text().strip()
+                            if val and val != "00:00:00":
+                                logger.debug(f"[is_in_call] Cronómetro de llamada activa detectado: {val}")
+                                return True
+                        except Exception:
+                            pass
             except Exception:
                 pass
                 
@@ -535,6 +549,7 @@ class GenesysRPA:
                 pass
 
         was_in_call = False
+        missed_call_checks = 0
 
         while True:
             try:
@@ -577,6 +592,7 @@ class GenesysRPA:
                 in_call = self.is_in_call()
 
                 if in_call:
+                    missed_call_checks = 0
                     call_data = self.get_active_call_data()
                     current_phone = call_data.get("phone_number", "").strip()
 
@@ -594,7 +610,7 @@ class GenesysRPA:
                     else:
                         # Si no hay llamada.txt, crear la señal para el agente
                         if not llamada_file.exists():
-                            logger.info(f"🛎️ [Watcher] Llamada activa detectada ({current_phone}). Escribiendo llamada.txt...")
+                            logger.info(f"🛎️ [Watcher] Llamada activa y conectada detectada ({current_phone}). Escribiendo llamada.txt...")
                             call_payload = {
                                 "phone_number": current_phone,
                                 "lead_id": call_data.get("lead_id", current_phone),
@@ -607,22 +623,28 @@ class GenesysRPA:
                     was_in_call = True
 
                 else:
-                    # No hay llamada activa
+                    # No hay llamada activa detectada en esta pasada
                     if was_in_call:
-                        # La llamada acaba de terminar o colgar
-                        logger.info("📞 [Watcher] Fin de llamada detectado en Genesys. Escribiendo colgado.txt...")
-                        colgado_file.write_text("CALL_HUNGUP", encoding="utf-8")
-                        llamada_file.unlink(missing_ok=True)
-                        ultimo_tel_file.unlink(missing_ok=True)
-                        was_in_call = False
+                        missed_call_checks += 1
+                        logger.debug(f"[Watcher] Llamada no detectada en ciclo ({missed_call_checks}/4)...")
+                        if missed_call_checks >= 4:
+                            # Confirmado tras ~1.5 segundos continuos sin llamada activa
+                            logger.info("📞 [Watcher] Fin de llamada confirmado en Genesys. Escribiendo colgado.txt...")
+                            colgado_file.write_text("CALL_HUNGUP", encoding="utf-8")
+                            llamada_file.unlink(missing_ok=True)
+                            ultimo_tel_file.unlink(missing_ok=True)
+                            was_in_call = False
+                            missed_call_checks = 0
 
-                # También revisar si el botón Done está visible (llamada finalizada)
-                if self.is_done_button_visible():
+                # También revisar si el botón Done está visible pero SOLO si estábamos en llamada activa
+                if was_in_call and self.is_done_button_visible():
                     if not colgado_file.exists():
-                        logger.info("📞 [Watcher] Botón Done visible. Escribiendo colgado.txt...")
+                        logger.info("📞 [Watcher] Botón Done visible en llamada finalizada. Escribiendo colgado.txt...")
                         colgado_file.write_text("DONE_VISIBLE", encoding="utf-8")
                         llamada_file.unlink(missing_ok=True)
                         ultimo_tel_file.unlink(missing_ok=True)
+                        was_in_call = False
+                        missed_call_checks = 0
 
             except Exception as loop_err:
                 logger.debug(f"[Watcher Loop Error] {loop_err}")
