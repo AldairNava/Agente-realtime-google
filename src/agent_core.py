@@ -659,6 +659,10 @@ class VoiceAgent:
             area: El área a la que se transfiere ('soporte', 'servicios', 'izzi movil').
             motivo: El motivo de la llamada detectado ('NEGOCIOS PRO', 'IZZI MOVIL', 'OTROS', 'SERVICIOS', 'MODULO', 'SOPORTE TECNICO', 'SUPERVISOR', 'COBRANZA', 'FTTH', 'RETENCIONES', 'PAGOS IVR', 'DR WIFI', 'TELEMARKETING').
         """
+        if getattr(self, 'transfer_executed', False):
+            return {"status": "ok", "message": "SILENCIO_ABSOLUTO: La transferencia ya está en curso. Guarda silencio total."}
+
+        self.transfer_executed = True
         # Guardar en base de datos 'pollution' en MySQL
         try:
             from tools.fallback_db import guardar_registro_pollution
@@ -726,14 +730,28 @@ class VoiceAgent:
         except Exception as ae:
             logger.error(f"Error escribiendo accion_transferir.txt: {ae}")
 
+        # Eliminar llamada.txt inmediatamente para evitar re-detección al reiniciar
+        try:
+            llamada_path = os.path.join(self.retencion_senales_dir, "llamada.txt")
+            if os.path.exists(llamada_path):
+                os.remove(llamada_path)
+                logger.info("🧹 [Retencion] Señal llamada.txt eliminada tras transferir.")
+        except Exception as le:
+            logger.error(f"Error eliminando llamada.txt: {le}")
+
         logger.info(f"🔄 [Retencion] Solicitando transferencia de llamada a: '{area}'...")
-        self.transfer_executed = True
         if self.delayed_hangup_task:
-            self.delayed_hangup_task.cancel()
+            try:
+                self.delayed_hangup_task.cancel()
+            except Exception:
+                pass
         self.loop.call_soon_threadsafe(
-            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(delay=3.0)))
+            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(max_wait=6.0)))
         )
-        return {"status": "ok", "message": f"Transferencia al área '{area}' iniciada. Desactivando agente para la siguiente llamada."}
+        return {
+            "status": "ok", 
+            "message": f"SILENCIO_ABSOLUTO: Transferencia al área '{area}' enviada. Guarda silencio total."
+        }
 
     def transferir_llamada_cancelacion(self, motivo: str = "RETENCIONES") -> dict:
         """
@@ -744,6 +762,12 @@ class VoiceAgent:
         Args:
             motivo: Motivo de la llamada o cancelación (por defecto 'RETENCIONES').
         """
+        if getattr(self, 'transfer_executed', False):
+            return {"status": "ok", "message": "SILENCIO_ABSOLUTO: Transferencia ya registrada. Guarda silencio total."}
+
+        self.transfer_executed = True
+        logger.info("🔄 [Retencion] Transferencia por cancelación iniciada...")
+
         # Guardar en base de datos 'pollution' en MySQL
         try:
             from tools.fallback_db import guardar_registro_pollution
@@ -802,14 +826,28 @@ class VoiceAgent:
             except Exception as pe:
                 logger.error(f"Error guardando ultimo_telefono.txt: {pe}")
 
-        logger.info("🔄 [Retencion] Transferencia por cancelación registrada. Esperando a que el agente termine de hablar...")
-        self.transfer_executed = True
+        # Eliminar llamada.txt inmediatamente para evitar re-detección al reiniciar
+        try:
+            llamada_path = os.path.join(self.retencion_senales_dir, "llamada.txt")
+            if os.path.exists(llamada_path):
+                os.remove(llamada_path)
+                logger.info("🧹 [Retencion] Señal llamada.txt eliminada tras transferir cancelación.")
+        except Exception as le:
+            logger.error(f"Error eliminando llamada.txt: {le}")
+
+        logger.info("🔄 [Retencion] Transferencia por cancelación registrada. Programando reseteo limpio de sesión...")
         if self.delayed_hangup_task:
-            self.delayed_hangup_task.cancel()
+            try:
+                self.delayed_hangup_task.cancel()
+            except Exception:
+                pass
         self.loop.call_soon_threadsafe(
-            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(delay=3.0)))
+            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(max_wait=6.0)))
         )
-        return {"status": "ok", "message": "Transferencia de cancelación registrada. Desactivando agente para la siguiente llamada."}
+        return {
+            "status": "ok", 
+            "message": "SILENCIO_ABSOLUTO: La llamada ya fue transferida al especialista. Guarda silencio total."
+        }
 
     async def _bg_fetch_client_data(self):
         from tools.retencion.retencion_tools import SIGNALS_DIR, clasificar_perfil_cuenta
@@ -984,13 +1022,24 @@ class VoiceAgent:
             logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
         self.session_active = False
 
-    async def _delayed_session_reset(self, delay: float = 3.0):
+    async def _delayed_session_reset(self, max_wait: float = 6.0):
         """Espera a que el agente termine de decir su frase completa de transferencia antes de cerrar la sesión."""
-        logger.info(f"⏱️ [Retencion Transfer] Esperando {delay}s y fin de reproducción de audio antes de reiniciar sesión...")
-        await asyncio.sleep(delay)
+        logger.info(f"⏱️ [Retencion Transfer] Esperando a que el agente termine de hablar (máximo {max_wait}s)...")
+        await asyncio.sleep(1.0)
+        start_time = asyncio.get_event_loop().time()
         while getattr(self, '_ai_playback_active', False) or not self.audio_out_queue.empty():
+            if (asyncio.get_event_loop().time() - start_time) > max_wait:
+                logger.warning(f"⚠️ [Retencion Transfer] Tiempo límite alcanzado ({max_wait}s). Forzando cierre...")
+                break
             await asyncio.sleep(0.2)
-        logger.info("🔄 [Retencion Transfer] Frase dicha completamente. Desactivando sesión para esperar la siguiente llamada...")
+        await asyncio.sleep(0.5)
+        # Vaciar cualquier residuo en la cola de salida para silenciar de inmediato
+        while not self.audio_out_queue.empty():
+            try:
+                self.audio_out_queue.get_nowait()
+            except Exception:
+                break
+        logger.info("🔄 [Retencion Transfer] Frase completada. Desactivando sesión para esperar la siguiente llamada...")
         self.session_active = False
 
     async def _hangup_watchdog(self):
@@ -1140,12 +1189,14 @@ class VoiceAgent:
                         if api_cfg and not api_cfg._status_called:
                             api_cfg._pending_status = self.voice_cfg.get('dispositions', {}).get('client_speech', 'CLCU')
                     if self.delayed_hangup_task:
-                        logger.info("🚨 [VAD] Voz del cliente detectada durante despedida. Cancelando colgado programado...")
-                        self.delayed_hangup_task.cancel()
-                        self.delayed_hangup_task = None
-                    self.hangup_executed = False
-                    self.transfer_executed = False
-                    self.final_disposition = None
+                        if getattr(self, 'transfer_executed', False):
+                            pass
+                        else:
+                            logger.info("🚨 [VAD] Voz del cliente detectada durante despedida. Cancelando colgado programado...")
+                            self.delayed_hangup_task.cancel()
+                            self.delayed_hangup_task = None
+                            self.hangup_executed = False
+                            self.final_disposition = None
                     if self.execution_mode in ('produccion', 'pruebas'):
                         api_cfg = getattr(self.tools_dispatcher, 'api', None)
                         if api_cfg:
@@ -1161,6 +1212,11 @@ class VoiceAgent:
                         logger.warning("⚠️ [Core] Tiempo de espera del saludo inicial agotado. Desmuteando micrófono por seguridad.")
 
                 if self.greeting_done:
+                    # Si ya se ejecutó la transferencia, cortar envío de micrófono para que Gemini no genere más respuestas
+                    if getattr(self, 'transfer_executed', False):
+                        await asyncio.sleep(0.05)
+                        continue
+
                     # Muteado temporal de los primeros 4 segundos de habla de la IA para evitar interrupciones
                     is_muted = False
                     if getattr(self, '_ai_playback_active', False):
@@ -1181,6 +1237,10 @@ class VoiceAgent:
                 async for response in session.receive():
                     if not self.session_active: break
                     if response.server_content and response.server_content.interrupted:
+                        if getattr(self, 'transfer_executed', False):
+                            logger.info("ℹ️ [Barge-in] Interrupción ignorada porque la transferencia ya está en curso.")
+                            continue
+
                         if not self.greeting_lock:
                             while not self.audio_out_queue.empty(): self.audio_out_queue.get_nowait()
                             logger.info("🔇 [Barge-in] Limpiando cola de audio.")
@@ -1190,8 +1250,9 @@ class VoiceAgent:
                             logger.info("🚨 [Barge-in] Interrupción del cliente detectada durante despedida. Cancelando colgado programado...")
                             self.delayed_hangup_task.cancel()
                             self.delayed_hangup_task = None
+                            self.hangup_executed = False
+                            self.final_disposition = None
                         self.hangup_executed = False
-                        self.transfer_executed = False
                         self.final_disposition = None
                         if self.execution_mode in ('produccion', 'pruebas'):
                             api_cfg = getattr(self.tools_dispatcher, 'api', None)
@@ -1392,6 +1453,12 @@ class VoiceAgent:
 
                 asyncio.create_task(wait_and_inject_rfc())
                 result = {"resultado_oficial": "Extracción automática iniciada. Esperando a que el sistema calcule el RFC en segundo plano."}
+            elif fc.name in ('transferir_llamada_cancelacion', 'transferir_llamada_retencion'):
+                result = await asyncio.to_thread(self.tools_dispatcher.execute_tool, fc.name, fc.args)
+                if hasattr(self, 'call_transcript'):
+                    self.call_transcript.append(f"Respuesta de herramienta {fc.name}: {result}")
+                logger.info(f"🛑 [Retencion] Herramienta '{fc.name}' ejecutada: {result}. NO se envía send_tool_response a Gemini para garantizar silencio absoluto y evitar frases adicionales.")
+                return
             else:
                 result = await asyncio.to_thread(self.tools_dispatcher.execute_tool, fc.name, fc.args)
             if hasattr(self, 'call_transcript'):
