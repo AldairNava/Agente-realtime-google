@@ -826,6 +826,16 @@ class VoiceAgent:
             except Exception as pe:
                 logger.error(f"Error guardando ultimo_telefono.txt: {pe}")
 
+        # Solicitar transferencia en Genesys a través de archivo de señal para el Watcher
+        try:
+            os.makedirs(self.retencion_senales_dir, exist_ok=True)
+            accion_path = os.path.join(self.retencion_senales_dir, "accion_transferir.txt")
+            with open(accion_path, "w", encoding="utf-8") as af:
+                af.write(str(motivo if motivo else "RETENCIONES"))
+            logger.info(f"🔄 [Retencion] Señal accion_transferir.txt enviada con motivo '{motivo}'.")
+        except Exception as ae:
+            logger.error(f"Error escribiendo accion_transferir.txt: {ae}")
+
         # Eliminar llamada.txt inmediatamente para evitar re-detección al reiniciar
         try:
             llamada_path = os.path.join(self.retencion_senales_dir, "llamada.txt")
@@ -842,7 +852,7 @@ class VoiceAgent:
             except Exception:
                 pass
         self.loop.call_soon_threadsafe(
-            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(max_wait=6.0)))
+            lambda: setattr(self, 'delayed_hangup_task', self.loop.create_task(self._delayed_session_reset(max_wait=3.0)))
         )
         return {
             "status": "ok", 
@@ -1022,17 +1032,17 @@ class VoiceAgent:
             logger.info("🛠️ [Local] Simulación de colgado de llamada (modo local).")
         self.session_active = False
 
-    async def _delayed_session_reset(self, max_wait: float = 6.0):
+    async def _delayed_session_reset(self, max_wait: float = 3.0):
         """Espera a que el agente termine de decir su frase completa de transferencia antes de cerrar la sesión."""
         logger.info(f"⏱️ [Retencion Transfer] Esperando a que el agente termine de hablar (máximo {max_wait}s)...")
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(0.3)
         start_time = asyncio.get_event_loop().time()
         while getattr(self, '_ai_playback_active', False) or not self.audio_out_queue.empty():
             if (asyncio.get_event_loop().time() - start_time) > max_wait:
                 logger.warning(f"⚠️ [Retencion Transfer] Tiempo límite alcanzado ({max_wait}s). Forzando cierre...")
                 break
-            await asyncio.sleep(0.2)
-        await asyncio.sleep(0.5)
+            await asyncio.sleep(0.15)
+        await asyncio.sleep(0.2)
         # Vaciar cualquier residuo en la cola de salida para silenciar de inmediato
         while not self.audio_out_queue.empty():
             try:
@@ -1177,6 +1187,11 @@ class VoiceAgent:
                              logger.info("📢 [IA] Iniciando saludo natural (Live)...")
                              trigger = self.voice_cfg.get('behavior', {}).get('auto_greet_message', "Hola, buenas tardes.")
                              await session.send_realtime_input(text=trigger)
+
+                # Si ya se ejecutó la transferencia, cortar de tajo el micrófono para silencio total
+                if getattr(self, 'transfer_executed', False):
+                    await asyncio.sleep(0.05)
+                    continue
 
                 if self.vad.is_speech(chunk):
                     self.client_speech_detected = True
