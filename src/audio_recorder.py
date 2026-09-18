@@ -109,7 +109,21 @@ class AudioRecorder:
 
         self._wav.close()
         size_kb = os.path.getsize(self.call_path) / 1024
-        logger.info(f"💾 [Grabación] {self.call_path} ({size_kb:.0f} KB) guardado.")
+        logger.info(f"💾 [Grabación WAV] {self.call_path} ({size_kb:.0f} KB) guardado.")
+
+        # Convertir también a MP3 en la misma carpeta
+        try:
+            import sys
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+            if base_dir not in sys.path:
+                sys.path.insert(0, base_dir)
+            from wav_to_mp3 import convertir_wav_a_mp3
+            mp3_path = convertir_wav_a_mp3(self.call_path)
+            if mp3_path and os.path.exists(mp3_path):
+                mp3_kb = os.path.getsize(mp3_path) / 1024
+                logger.info(f"💾 [Grabación MP3] {mp3_path} ({mp3_kb:.0f} KB) guardado.")
+        except Exception as e:
+            logger.warning(f"⚠️ No se pudo generar versión MP3: {e}")
 
 
 class AgentVoiceCapture:

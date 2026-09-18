@@ -1219,28 +1219,20 @@ class VoiceAgent:
 
                 if self.recorder: self.recorder.write_client(chunk)
 
-                # Control de silencio / muteado inicial
+                # Control de saludo (solo para logueo, ya no bloqueamos el micrófono)
                 if not self.greeting_done:
                     elapsed = asyncio.get_event_loop().time() - self.greeting_trigger_time if getattr(self, '_greeting_triggered', False) else 0
                     if elapsed > 4.0:
                         self.greeting_done = True
-                        logger.warning("⚠️ [Core] Tiempo de espera del saludo inicial agotado. Desmuteando micrófono por seguridad.")
 
-                if self.greeting_done:
-                    # Si ya se ejecutó la transferencia, cortar envío de micrófono para que Gemini no genere más respuestas
-                    if getattr(self, 'transfer_executed', False):
-                        await asyncio.sleep(0.05)
-                        continue
+                # Si ya se ejecutó la transferencia, cortar envío de micrófono para que Gemini no genere más respuestas
+                if getattr(self, 'transfer_executed', False):
+                    await asyncio.sleep(0.05)
+                    continue
 
-                    # Muteado temporal de los primeros 4 segundos de habla de la IA para evitar interrupciones
-                    is_muted = False
-                    if getattr(self, '_ai_playback_active', False):
-                        elapsed_speaking = asyncio.get_event_loop().time() - getattr(self, 'ai_speaking_start_time', 0)
-                        if elapsed_speaking < 4.0:
-                            is_muted = True
-                    
-                    if not is_muted:
-                        await session.send_realtime_input(audio=types.Blob(data=chunk, mime_type="audio/pcm;rate=16000"))
+                # Permitimos interrupción (Barge-in) enviando siempre el audio al agente.
+                # (Recomendación: usa audífonos en modo local para evitar eco del altavoz al micrófono).
+                await session.send_realtime_input(audio=types.Blob(data=chunk, mime_type="audio/pcm;rate=16000"))
         except Exception as e:
             if "1000" not in str(e) and "asyncio.exceptions.CancelledError" not in str(e):
                 logger.error(f"Error _send_audio: {e}")
@@ -2076,11 +2068,11 @@ class VoiceAgent:
                             try: os.remove(os.path.join(sync_dir, f))
                             except: pass
 
-                # Iniciar grabador global para esta llamada/sesión
+                # Iniciar grabador global para esta llamada/sesión (cliente + agente)
                 rec_cfg = self.voice_cfg.get('recording', {})
-                if rec_cfg.get('enabled') and self.execution_mode == 'local':
+                if rec_cfg.get('enabled', True):
                     from .audio_recorder import AudioRecorder
-                    self.recorder = AudioRecorder(output_dir='recordings')
+                    self.recorder = AudioRecorder(output_dir=self.capture_dir)
                 else:
                     self.recorder = None
 
@@ -2129,7 +2121,7 @@ class VoiceAgent:
                             
                             cuenta_str = f" Cuenta: {self.client_cuenta}." if self.client_cuenta else ""
                             await session.send_realtime_input(
-                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name}. Teléfono: {self.client_phone}.{cuenta_str} IMPORTANTE: El saludo inicial de la llamada DEBE ser dicho de viva voz por ti exactamente así: '{greeting_phrase}' ESPERA SU RESPUESTA. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]\n\nhola"
+                                text=f"[SISTEMA: Llamada conectada. Cliente: {self.client_name}. Teléfono: {self.client_phone}.{cuenta_str} IMPORTANTE: Saluda de viva voz inmediatamente diciendo exactamente: '{greeting_phrase}'. Si te preguntan quién habla, usa tu presentación completa. NO INVENTES números de cuenta ni datos que no se te hayan proporcionado. {brand_info}]\n\nhola"
                             )
                         
                         async def monitor():

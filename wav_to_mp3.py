@@ -11,11 +11,11 @@ def convertir_wav_a_mp3(ruta_wav: str):
     # Validar que se recibió un archivo WAV
     if not os.path.isfile(ruta_wav):
         print(f"[ERROR] No se encontró el archivo: {ruta_wav}")
-        sys.exit(1)
+        return None
 
     if not ruta_wav.lower().endswith(".wav"):
         print(f"[ERROR] El archivo no es un WAV: {ruta_wav}")
-        sys.exit(1)
+        return None
 
     # Carpeta de salida: la misma carpeta donde está el archivo WAV
     carpeta_mp3 = os.path.dirname(os.path.abspath(ruta_wav))
@@ -51,7 +51,7 @@ def convertir_wav_a_mp3(ruta_wav: str):
                 mp3_file.write(encoder.flush())
         
         print(f"[OK]   MP3 guardado en (vía lameenc): {ruta_mp3}")
-        return
+        return ruta_mp3
         
     except ImportError:
         pass
@@ -64,12 +64,13 @@ def convertir_wav_a_mp3(ruta_wav: str):
         audio = AudioSegment.from_wav(ruta_wav)
         audio.export(ruta_mp3, format="mp3", bitrate="192k")
         print(f"[OK]   MP3 guardado en (vía pydub): {ruta_mp3}")
+        return ruta_mp3
     except ImportError:
         print("[ERROR] No se pudo convertir. Instala 'lameenc' o 'pydub' + 'ffmpeg'.")
-        sys.exit(1)
+        return None
     except Exception as e:
         print(f"[ERROR] Error al exportar con pydub (¿tienes ffmpeg instalado?): {e}")
-        sys.exit(1)
+        return None
 
 
 if __name__ == "__main__":
